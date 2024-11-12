@@ -7,60 +7,61 @@ import os
 from .getface import get_face_mtcnn, get_face_yolo, yolo,  mtcnn
 from .infer_image import get_model, infer
 from torch.nn.modules.distance import PairwiseDistance
-
-
-
+import pickle
+import cv2
+from PIL import Image
+from supervision import Detections
+from .get_embedding import load_embeddings_and_names
 
 l2_distance = PairwiseDistance(p=2)
 device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
 
-workers = 0 if os.name == 'nt' else 4
 
-def create_data_embeddings(data_gallary_path, detection_model, recognition_model):
+def find_closest_person(pred_path, embeddings_path, names_path, detect_model_name, recogn_model_name):
+ 
+    pred_embed, boxes = infer(detect_model_name, recogn_model_name, pred_path)
 
-    def collate_fn(x):
-        return x[0]
+    embeddings, names = load_embeddings_and_names(embeddings_path, names_path)
 
-    dataset = datasets.ImageFolder(data_gallary_path)
-    dataset.idx_to_class = {i:c for c, i in dataset.class_to_idx.items()}
-    loader = DataLoader(dataset, collate_fn=collate_fn, num_workers=workers)
+    if isinstance(pred_embed, torch.Tensor):
+        pred_embed = pred_embed.cpu()  
 
-    aligned = []
-    names = []
+    embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
 
-    for x, y in loader:
-        x_aligned, prob = detection_model(x, return_prob=True)
-        if x_aligned is not None:
-            aligned.append(x_aligned)
-            names.append(dataset.idx_to_class[y])
-    aligned = torch.stack(aligned).to(device)
-    embeddings = recognition_model(aligned).detach().to(device)
-    return embeddings, names
-
-
-
-def find_closest_person(pred_path, embeddings, detect_model_name, recogn_model):
-    pred_embed= infer(detect_model_name, recogn_model, pred_path)
-        
-    scores=[]
-    for compare_embed in embeddings:
-        score = l2_distance.forward(pred_embed, compare_embed)
-        scores.append(score)
+    scores = l2_distance(pred_embed.unsqueeze(0), embeddings_tensor)
+    scores = scores.detach().cpu().numpy()
 
     optim_index = np.argmin(scores)
+    name_of_person = names[optim_index]
 
-    return optim_index
+    img = cv2.imread(pred_path)
 
+    if boxes is not None:
+        x1, y1, x2, y2 = map(int, boxes[0])
+        cv2.rectangle(img, (x1, y1), (x2 , y2), (255, 0, 0), 1)
+        cv2.putText(img, name_of_person, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+    cv2.imshow('Face Recognition', img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    return scores, optim_index, name_of_person
 
 
 if __name__ == '__main__':
-    
-    recognition_model = get_model('inceptionresnetV1')
-    data_gallary_path = 'data/dataset'
-    embeddings, names = create_data_embeddings(data_gallary_path, mtcnn, recognition_model)
-    print(embeddings.shape)
-    print(names)
 
-    pred_path = 'testdata/sontung/sontung1.jpg'
-    optim_index = find_closest_person(pred_path, embeddings, 'mtcnn', recognition_model)
-    print(optim_index)
+    recogn_model_name= 'inceptionresnetV1'
+    test_folder_path = 'testdata/chipu'
+    detect_model_name = 'yolo'
+    embeddings_path = f'data/embedding_names/{recogn_model_name}_mtcnn_embeddings.npy'
+    names_path = f'data/embedding_names/{recogn_model_name}_names.pkl'
+   
+   
+
+    for image_name in os.listdir(test_folder_path):
+        pred_path = os.path.join(test_folder_path, image_name)
+        scorres, optim_index, name_of_person = find_closest_person(pred_path, embeddings_path, names_path, detect_model_name, recogn_model_name)
+        print(optim_index)
+        print(scorres.shape)
+        print(name_of_person)
+

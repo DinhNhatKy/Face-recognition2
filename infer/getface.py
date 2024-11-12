@@ -37,7 +37,7 @@ def get_face_yolo(image_path, model):
             highest_confidence = confidence
             best_cropped_image = image.crop((x1, y1, x2, y2))
 
-    return best_cropped_image
+    return best_cropped_image, results.xyxy
     
 
 
@@ -58,7 +58,7 @@ def get_face_mtcnn(image_path, mtcnn):
                 highest_prob = prob
                 best_cropped_image = image.crop((x1, y1, x2, y2))
 
-    return best_cropped_image
+    return best_cropped_image, boxes
 
 
 
@@ -66,15 +66,14 @@ if __name__ == '__main__':
     
     model_select = input('Input the model yolo or mtcnn:')
 
-    image_path = 'testdata/sontung/sontung2.jpg'
+    image_path = 'testdata/sontung/001.jpg'
     
     if model_select =='yolo':
-        cropped_images = get_face_yolo(image_path, yolo)
+        cropped_images, boxes = get_face_yolo(image_path, yolo)
     else: 
-        cropped_images = get_face_mtcnn(image_path, mtcnn)
+        cropped_images, boxes = get_face_mtcnn(image_path, mtcnn)
 
-    print('shape:', cropped_images.shape)
-    cropped_images = cropped_images.permute(1,2,0).numpy()
     plt.imshow(cropped_images)
     plt.show()
+    print(boxes)
     

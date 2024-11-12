@@ -91,45 +91,40 @@ def inceptionresnetV2_transform(image, image_size):
     return img
 
 
-
-
-def infer(detect_model_name, recogn_model, image_path):
+def infer(detect_model_name, recogn_model_name, image_path):
     input_image = None
     if detect_model_name == 'yolo':
-        input_image = get_face_yolo(image_path, yolo)
+        input_image, boxes = get_face_yolo(image_path, yolo)
     elif detect_model_name=='mtcnn':
-        input_image = get_face_mtcnn(image_path, mtcnn)
+        input_image, boxes = get_face_mtcnn(image_path, mtcnn)
     else:
         print('please select correct detect model')
+    
+    recogn_model = get_model(recogn_model_name)
 
-    plt.imshow(np.array(input_image))
-    plt.show()
 
     if isinstance(recogn_model, Resnet34Triplet):
         input_image = resnet_transform(input_image, 140)
     elif isinstance(recogn_model, InceptionResnetV2Triplet) :
         input_image = inceptionresnetV2_transform(input_image, (299, 299))
     else:
+        if input_image.size[0]< 80 or input_image.size[1]< 1:
+            input_image =   input_image.resize((299, 299))
         input_image = transforms.ToTensor()(input_image).unsqueeze(0)
-    
-    embedding = recogn_model(input_image)
-    return embedding
 
+    embedding = recogn_model(input_image)
+    return embedding, boxes
 
 
 if __name__ == "__main__":
 
-    resnet34 = get_model('resnet34')
-    inceptionresnetV1 = get_model('inceptionresnetV1')
-    inceptionresnetV2 = get_model('inceptionresnetV2')
-
-    anc_path  = 'data/dataset/chipu/004.jpg'
-    pos_path = 'data/dataset/chipu/007.jpg'
-    neg_path = 'data/dataset/thaotam/023.jpg'
+    anc_path  = 'data/dataset/thaotam/018.jpg'
+    pos_path = 'data/dataset/thaotam/017.jpg'
+    neg_path = 'data/dataset/sontung/003.jpg'
     
-    anc_embedding= infer('yolo', inceptionresnetV2, anc_path)
-    pos_embedding= infer('yolo', inceptionresnetV2, pos_path)
-    neg_embedding= infer('yolo', inceptionresnetV2, neg_path)
+    anc_embedding, _ = infer('mtcnn', 'inceptionresnetV1', anc_path)
+    pos_embedding, _ = infer('mtcnn', 'inceptionresnetV1', pos_path)
+    neg_embedding,_ = infer('mtcnn', 'inceptionresnetV1', neg_path)
 
     l2_distance = PairwiseDistance(p=2)
     dist1 =  l2_distance.forward(anc_embedding, pos_embedding)

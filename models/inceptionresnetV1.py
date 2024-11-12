@@ -322,6 +322,6 @@ if __name__ == "__main__":
     model = InceptionResnetV1(pretrained='vggface2', classify=False, num_classes=None, dropout_prob=0.6, device=device)
 
     model.eval()
-    x= torch.randn(1,3,70,70).to(device)
+    x= torch.randn(1,3,80,80).to(device)
     output = model(x).to(device)
     print(output.shape)
