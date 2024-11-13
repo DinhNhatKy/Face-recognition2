@@ -7,25 +7,37 @@ from models.resnet import Resnet34Triplet
 device  = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def set_model_architecture(model_architecture, pretrained, embedding_dimension):
+def get_model(model_name):
+    model = None
 
-    if model_architecture == "resnet34":
+    if model_name == 'resnet34':
         model = Resnet34Triplet(
-            embedding_dimension=embedding_dimension,
-            pretrained=pretrained
+            embedding_dimension=512,
+            pretrained=True
         )
-    elif model_architecture == "inceptionresnetV2":
-        model = InceptionResnetV2Triplet(
-            embedding_dimension=embedding_dimension,
-            pretrained=pretrained
-        )
-    elif model_architecture == 'inceptionresnetV1':
-        model = InceptionResnetV1(pretrained='vggface2', classify=False, num_classes=None, dropout_prob=0.6, device=device)
-    else:
-        print('please select correct model')
-        
-    print("Using {} model architecture.".format(model_architecture))
+        checkpoint = torch.load('pretrained/model_resnet34_triplet.pt', weights_only = False, map_location=device)
+        state_dict = checkpoint['model_state_dict']
 
+    elif model_name == 'inceptionresnetV1':
+        model = InceptionResnetV1(pretrained='vggface2', classify=False, num_classes=None, dropout_prob=0.6, device=device)
+        state_dict = None
+
+    elif model_name == 'inceptionresnetV2':
+        model = InceptionResnetV2Triplet(
+            embedding_dimension=512,
+            pretrained=True
+        )
+        checkpoint = None # Haven't trained yet
+        state_dict = None
+    else:
+        print('please enter correct model! ')
+
+    model, _ = set_model_gpu_mode(model)
+
+    if state_dict:
+        model.load_state_dict(state_dict)
+    model.eval()
+    
     return model
 
 
