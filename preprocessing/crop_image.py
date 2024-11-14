@@ -1,9 +1,6 @@
-from facenet_pytorch import MTCNN, InceptionResnetV1, fixed_image_standardization, training
+from facenet_pytorch import MTCNN, fixed_image_standardization, training
 import torch
-from torch.utils.data import DataLoader, SubsetRandomSampler
-from torch import optim
-from torch.optim.lr_scheduler import MultiStepLR
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 import numpy as np
 import os

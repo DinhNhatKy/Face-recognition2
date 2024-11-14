@@ -1,7 +1,5 @@
-import torch.optim as optim
 import torch
 import torch.nn as nn
-from models.inceptionresnetV2 import InceptionResnetV2Triplet
 from models.inceptionresnetV1 import InceptionResnetV1
 from models.resnet import Resnet34Triplet
 device  = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -22,13 +20,6 @@ def get_model(model_name):
         model = InceptionResnetV1(pretrained='vggface2', classify=False, num_classes=None, dropout_prob=0.6, device=device)
         state_dict = None
 
-    elif model_name == 'inceptionresnetV2':
-        model = InceptionResnetV2Triplet(
-            embedding_dimension=512,
-            pretrained=True
-        )
-        checkpoint = None # Haven't trained yet
-        state_dict = None
     else:
         print('please enter correct model! ')
 

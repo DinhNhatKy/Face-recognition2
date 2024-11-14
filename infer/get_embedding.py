@@ -4,8 +4,8 @@ from torch.utils.data import DataLoader
 from torchvision import datasets
 import numpy as np
 import os
-from .getface import mtcnn_inceptionresnetV1, mtcnn_inceptionresnetV2, mtcnn_resnet
-from .infer_image import get_model, resnet_transform, inceptionresnetV2_transform, inceptionresnetV1_transform
+from .getface import mtcnn_inceptionresnetV1, mtcnn_resnet
+from .infer_image import get_model, resnet_transform, inceptionresnetV1_transform
 from torch.nn.modules.distance import PairwiseDistance
 import pickle
 from torchvision import transforms
@@ -35,27 +35,16 @@ def create_data_embeddings(data_gallary_path, recognition_model_name, save_path)
     if recognition_model_name == 'resnet34':
         for x, y in loader:
             x_aligned = mtcnn_resnet(x)
-           
             if x_aligned is not None:
-                x_aligned = resnet_transform(x_aligned, 140)
-                aligned.append(x_aligned)
-                names.append(dataset.idx_to_class[y])
-
-    elif  recognition_model_name == 'inceptionresnetV2':
-        for x, y in loader:
-            x_aligned = mtcnn_inceptionresnetV2(x)
-            
-            if x_aligned is not None:
-                x_aligned = inceptionresnetV2_transform(x_aligned, (299, 299))
+                x_aligned = resnet_transform(x_aligned)
                 aligned.append(x_aligned)
                 names.append(dataset.idx_to_class[y])
 
     else:
-          for x, y in loader:
-            x_aligned = mtcnn_inceptionresnetV1(x)
-           
+         for x, y in loader:
+            x_aligned= mtcnn_inceptionresnetV1(x)
             if x_aligned is not None:
-                x_aligned   = inceptionresnetV1_transform(x_aligned)
+                x_aligned = inceptionresnetV1_transform(x_aligned)
                 aligned.append(x_aligned)
                 names.append(dataset.idx_to_class[y])
 
@@ -87,19 +76,18 @@ def load_embeddings_and_names(embedding_file_path, names_file_path):
 
     return embeddings, names
 
-
 if __name__ == '__main__':
     
-    # data_gallary_path = 'data/dataset'
-    # embedding_save_path = 'data/embedding_names'
-    # embeddings, names = create_data_embeddings(data_gallary_path, 'inceptionresnetV1', embedding_save_path )
+    data_gallary_path = 'data/dataset'
+    embedding_save_path = 'data/embedding_names'
+    embeddings, names = create_data_embeddings(data_gallary_path, 'resnet34', embedding_save_path )
 
 
 
-    embedding_file_path= 'data/embedding_names/inceptionresnetV1_embeddings.npy'
-    names_file_path = 'data/embedding_names/inceptionresnetV1_names.pkl'
+    # embedding_file_path= 'data/embedding_names/inceptionresnetV1_embeddings.npy'
+    # names_file_path = 'data/embedding_names/inceptionresnetV1_names.pkl'
 
-    embeddings, names = load_embeddings_and_names(embedding_file_path, names_file_path)
+    # embeddings, names = load_embeddings_and_names(embedding_file_path, names_file_path)
 
     
     print(embeddings.shape)

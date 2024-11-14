@@ -1,89 +1,86 @@
 import torch
-from facenet_pytorch import InceptionResnetV1, MTCNN
-import numpy as np
-from PIL import Image
-import cv2  # Để xử lý bbox
-from huggingface_hub import hf_hub_download
-from ultralytics import YOLO
+import cv2
+import torch.nn.functional as F
+from .infer_image import infer
+from .get_embedding import load_embeddings_and_names
+from .getface import yolo
+from torch.nn.modules.distance import PairwiseDistance
 
+# Khởi tạo biến
+l2_distance = PairwiseDistance(p=2)
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-resnet = InceptionResnetV1(
-    classify=True,
-    pretrained='vggface2',
-    num_classes=len(dataset.class_to_idx)
-).to(device)
+def find_closest_person(pred_embed, embeddings, names, distance_mode):
+    if isinstance(pred_embed, torch.Tensor):
+        pred_embed = pred_embed.cpu()
 
+    embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
 
-model_path = '/kaggle/working/model_final.pth'
-checkpoint = torch.load(model_path)
-resnet.load_state_dict(checkpoint['model_state_dict'])
+    total_distances = {}
+    counts = {}
+    
+    if distance_mode == 'cosine':
+        distances = F.cosine_similarity(pred_embed, embeddings_tensor)
+    else:
+        distances = torch.norm(embeddings_tensor - pred_embed, dim=1).detach().cpu().numpy()
 
+    for i, name in enumerate(names):
+        distance = distances[i].item()  # Chuyển đổi tensor thành số
+        if name not in total_distances:
+            total_distances[name] = 0
+            counts[name] = 0
+        total_distances[name] += distance
+        counts[name] += 1
 
-model_path_yolo = hf_hub_download(repo_id="arnabdhar/YOLOv8-Face-Detection", filename="model.pt")
-yolo_model = YOLO(model_path_yolo)
+    avg_distances = {name: total_distances[name] / counts[name] for name in total_distances}
 
-def infer_video(model, video_path, output_path):
-    # Mở video
+    if distance_mode == 'l2':
+        name_of_person = min(avg_distances, key=avg_distances.get)
+    else:
+        name_of_person = max(avg_distances, key=avg_distances.get)
+
+    return avg_distances, name_of_person
+
+def infer_video(video_path, embeddings, names, recogn_model_name, distance_mode):
     cap = cv2.VideoCapture(video_path)
-
     if not cap.isOpened():
-        print("Error opening video file")
+        print(f"Error: Could not open video {video_path}")
         return
 
-    # Lấy thông tin về kích thước video
-    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = cap.get(cv2.CAP_PROP_FPS)
-
-    # Tạo đối tượng VideoWriter để lưu video đầu ra
-    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'XVID'), fps, (frame_width, frame_height))
-
-    while True:
-        # Đọc từng khung hình từ video
+    while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
-            break  # Kết thúc vòng lặp nếu không còn khung hình
+            break
 
-        # Chuyển đổi khung hình sang RGB
-        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        pil_image = Image.fromarray(image)
+        img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        # Phát hiện khuôn mặt và căn chỉnh
-        x_aligned, prob = mtcnn(pil_image, return_prob=True)
+        pred_embed = infer(recogn_model_name, img)
 
-        if x_aligned is None:
-            print("Can't find face in frame")
-            continue
+        avg_distances, name_of_person = find_closest_person(pred_embed, embeddings, names, distance_mode)
 
-        x_aligned = x_aligned.unsqueeze(0).to(device)
+        results = yolo(frame)
+        if results[0].boxes is not None:
+            boxes = results[0].boxes.xyxy.cpu().numpy()
+            for box in boxes:
+                x1, y1, x2, y2 = map(int, box)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
+                cv2.putText(frame, name_of_person, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-        # Dự đoán lớp
-        resnet.eval()
-        with torch.no_grad():
-            output = model(x_aligned)
+        cv2.imshow('Face Recognition', frame)
 
-        predicted_class = torch.argmax(output, dim=1)  # Lớp được dự đoán
-        person_name = dataset.idx_to_class[predicted_class.item()]
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
-        # Phát hiện khuôn mặt với YOLO
-        results = yolo_model(pil_image)
-        boxes = results[0].boxes.xyxy  # Lấy bounding box
-        confidences = results[0].boxes.conf  # Lấy độ tin cậy
-
-        # Vẽ bounding box lên ảnh và thêm tên người
-        for box, conf in zip(boxes, confidences):
-            x1, y1, x2, y2 = map(int, box)  # Chuyển đổi tọa độ box thành kiểu int
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)  # Vẽ bounding box màu xanh
-            cv2.putText(frame, person_name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)  # Thêm tên
-
-        # Ghi khung hình đã xử lý vào video đầu ra
-        out.write(frame)
-
-    # Giải phóng tài nguyên
     cap.release()
-    out.release()
-    print("Processing complete, output saved to:", output_path)
+    cv2.destroyAllWindows()
 
-video_path = '/kaggle/input/test-data-sontung/sontung.mp4'
-output_path = '/kaggle/working/output_video.mp4'
-infer_video(resnet, video_path, output_path)
+if __name__ == '__main__':
+    # Ví dụ gọi hàm
+    video_path = 'testdata/sontung_video2.mp4'
+    recogn_model_name = 'inceptionresnetV1'
+    embedding_file_path = f'data/embedding_names/{recogn_model_name}_embeddings.npy'
+    names_file_path = f'data/embedding_names/{recogn_model_name}_names.pkl'
+   
+    embeddings, names = load_embeddings_and_names(embedding_file_path, names_file_path)
+
+    infer_video(video_path, embeddings, names, recogn_model_name, 'l2')
