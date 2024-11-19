@@ -69,7 +69,7 @@ def find_closest_person(pred_path, embeddings, names, recogn_model_name, distanc
 
 if __name__ == '__main__':
 
-    recogn_model_name= 'resnet34'
+    recogn_model_name= 'inceptionresnetV1'
     test_folder_path = 'testdata/thaotam'
     embedding_file_path = f'data/embedding_names/{recogn_model_name}_embeddings.npy'
     names_file_path = f'data/embedding_names/{recogn_model_name}_names.pkl'
