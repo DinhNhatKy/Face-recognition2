@@ -9,11 +9,11 @@ def get_model(model_name):
     model = None
 
     if model_name == 'resnet34':
+        checkpoint = torch.load('pretrained/model_resnet34_triplet.pt', weights_only = False, map_location=device)
         model = Resnet34Triplet(
-            embedding_dimension=512,
+            embedding_dimension=checkpoint['embedding_dimension'],
             pretrained=True
         )
-        checkpoint = torch.load('pretrained/model_resnet34_triplet.pt', weights_only = False, map_location=device)
         state_dict = checkpoint['model_state_dict']
 
     elif model_name == 'inceptionresnetV1':

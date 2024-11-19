@@ -43,7 +43,7 @@ def resnet_transform(image):
 def infer(recogn_model_name, image):
     
     recogn_model = get_model(recogn_model_name)
-
+    input_image = None
     if isinstance(recogn_model, Resnet34Triplet):
    
         input_image = mtcnn_resnet(image)
@@ -61,36 +61,40 @@ def infer(recogn_model_name, image):
 
 
 if __name__ == "__main__":
-
-    anc_path  = 'data/dataset/khanh/001.jpg'
-    pos_path = 'data/dataset/khanh/002.jpg'
-    neg_path = 'data/dataset/baejun/003.jpg'
     
-    select_model = 'resnet34'
+    for i in range(10, 31):
+        anc_path  = 'testdata/thaotam/001.jpg'
+        pos_path = f'data/dataset/thaotam/0{i}.jpg'
+        neg_path = f'data/dataset/chipu/0{i}.jpg'
+        
+        select_model = 'resnet34'
 
-    anc_image = Image.open(anc_path).convert('RGB')
-    pos_image = Image.open(pos_path).convert('RGB')
-    neg_image = Image.open(neg_path).convert('RGB')
+        anc_image = Image.open(anc_path).convert('RGB')
+        pos_image = Image.open(pos_path).convert('RGB')
+        neg_image = Image.open(neg_path).convert('RGB')
 
-    anc_embedding = infer(select_model , anc_image)
-    pos_embedding =  infer(select_model , pos_image)
-    neg_embedding =  infer(select_model , neg_image)
+        anc_embedding = infer(select_model , anc_image)
+        pos_embedding =  infer(select_model , pos_image)
+        neg_embedding =  infer(select_model , neg_image)
 
-    l2_distance = PairwiseDistance(p=2)
+        # print('anc_embedding', anc_embedding.max(), anc_embedding.min())
+        # print('pos_embedding', pos_embedding.max(), pos_embedding.min())
+        # print('neg_embedding', neg_embedding.max(), neg_embedding.min())
+        l2_distance = PairwiseDistance(p=2)
 
-    dist1 =  l2_distance.forward(anc_embedding, pos_embedding)
-    dist2 =  l2_distance.forward(anc_embedding, neg_embedding)
+        dist1 =  l2_distance.forward(anc_embedding, pos_embedding)
+        dist2 =  l2_distance.forward(anc_embedding, neg_embedding)
 
 
-    cosine_similarity = F.cosine_similarity
+        cosine_similarity = F.cosine_similarity
 
-    similarity_pos = cosine_similarity(anc_embedding, pos_embedding, dim=1)
-    similarity_neg = cosine_similarity(anc_embedding, neg_embedding, dim=1)
+        similarity_pos = cosine_similarity(anc_embedding, pos_embedding, dim=1)
+        similarity_neg = cosine_similarity(anc_embedding, neg_embedding, dim=1)
 
-    print('l2:')
-    print(dist1.item())
-    print(dist2.item())
-    print('cosine:')
-    print(similarity_pos.item())
-    print(similarity_neg.item())
+        print('l2:')
+        print(dist1.item())
+        print(dist2.item())
+        print('cosine:')
+        print(similarity_pos.item())
+        print(similarity_neg.item())
 

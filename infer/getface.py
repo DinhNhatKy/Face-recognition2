@@ -17,7 +17,7 @@ mtcnn_inceptionresnetV1 = MTCNN(
 )
 
 mtcnn_resnet = MTCNN(
-    image_size=299, margin=0, min_face_size=20,
+    image_size=224, margin=0, min_face_size=20,
     device=device
 )
 
