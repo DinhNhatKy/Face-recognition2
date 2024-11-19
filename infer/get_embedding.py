@@ -10,6 +10,8 @@ from torch.nn.modules.distance import PairwiseDistance
 import pickle
 from torchvision import transforms
 
+from deepface.modules.detection import extract_faces
+from deepface.modules.preprocessing import resize_image
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -32,21 +34,14 @@ def create_data_embeddings(data_gallary_path, recognition_model_name, save_path)
     aligned = []  # List of images in the gallery
     names = []    # List of names corresponding to images
 
-    if recognition_model_name == 'resnet34':
-        for x, y in loader:
-            x_aligned = mtcnn_resnet(x)
-            if x_aligned is not None:
-                x_aligned = resnet_transform(x_aligned)
-                aligned.append(x_aligned)
-                names.append(dataset.idx_to_class[y])
 
-    else:
-         for x, y in loader:
-            x_aligned= mtcnn_inceptionresnetV1(x)
-            if x_aligned is not None:
-                x_aligned = inceptionresnetV1_transform(x_aligned)
-                aligned.append(x_aligned)
-                names.append(dataset.idx_to_class[y])
+    for x, y in loader:
+        x_aligned= mtcnn_inceptionresnetV1(x)
+
+        if x_aligned is not None:
+            x_aligned = inceptionresnetV1_transform(x_aligned)
+            aligned.append(x_aligned)
+            names.append(dataset.idx_to_class[y])
 
 
     if aligned:
@@ -80,9 +75,8 @@ if __name__ == '__main__':
     
     data_gallary_path = 'data/dataset'
     embedding_save_path = 'data/embedding_names'
-    embeddings, names = create_data_embeddings(data_gallary_path, 'resnet34', embedding_save_path )
-
-
+    embeddings, names = create_data_embeddings(data_gallary_path, 'inceptionresnetV1', embedding_save_path )
+ 
 
     # embedding_file_path= 'data/embedding_names/inceptionresnetV1_embeddings.npy'
     # names_file_path = 'data/embedding_names/inceptionresnetV1_names.pkl'

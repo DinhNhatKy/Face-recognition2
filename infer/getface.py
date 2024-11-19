@@ -10,6 +10,7 @@ from models.mtcnn import MTCNN
 import torch
 
 device  = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 mtcnn_inceptionresnetV1 = MTCNN(
     image_size=160, margin=0, min_face_size=20,
     thresholds=[0.6, 0.7, 0.7], factor=0.709, post_process=True,

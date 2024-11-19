@@ -1,7 +1,7 @@
 
 import torch
 import os
-from .infer_image import infer
+from .infer_image import infer, infer2
 from torch.nn.modules.distance import PairwiseDistance
 import cv2
 from PIL import Image
@@ -111,8 +111,8 @@ def find_closest_person_vote(pred_path, embeddings, names, recogn_model_name, di
 
 if __name__ == '__main__':
 
-    recogn_model_name= 'resnet34'
-    test_folder_path = 'testdata/thaotam'
+    recogn_model_name= 'inceptionresnetV1'
+    test_folder_path = 'testdata/chipu'
     embedding_file_path = f'data/embedding_names/{recogn_model_name}_embeddings.npy'
     names_file_path = f'data/embedding_names/{recogn_model_name}_names.pkl'
    
