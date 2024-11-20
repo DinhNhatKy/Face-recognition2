@@ -7,11 +7,11 @@ import torch
 from torchvision import transforms
 from torch.nn.modules.distance import PairwiseDistance
 from .getface import mtcnn_inceptionresnetV1, mtcnn_resnet, yolo
-from models.resnet import Resnet34Triplet
-from models.inceptionresnetV1 import InceptionResnetV1
+from models.face_recogn.resnet import Resnet34Triplet
+from models.face_recogn.inceptionresnetV1 import InceptionResnetV1
 import torch.nn.functional as F
-from deepface.models.spoofing import FasNet
-
+from models.spoofing.FasNet import Fasnet
+import cv2
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -41,72 +41,143 @@ def resnet_transform(image):
     return img
 
 
-def infer(recogn_model_name, image, antispoof_model):
-    recogn_model = get_model(recogn_model_name)
+def infer(recogn_model, align_image):
+    try:
+        input_image = inceptionresnetV1_transform(align_image)
+        embedding = recogn_model(input_image)
+        return embedding
+
+    except Exception as e:
+        print(f"Error during inference: {e}")
+        return None
+    
+
+def get_align(image, antispoof_model):
     cv_image = np.array(image)
+    face= None
+    is_real = False
+    input_image = image
+    prob = 0
+    lanmark = None
+    antispoof_score = None
 
-    faces, probs = mtcnn_inceptionresnetV1.detect(image)
-    
+    faces, probs, lanmarks = mtcnn_inceptionresnetV1.detect(image, landmarks= True)
+   
+
     if faces is not None and len(faces) > 0:
-        max_face = max(faces, key=lambda face: (face[2] - face[0]) * (face[3] - face[1]))
-
-        is_real, antispoof_score = antispoof_model.analyze(img=cv_image, facial_area=tuple(max_face))
-
+        face = faces[0] # get highest area bboxes
+        prob = probs[0]
+        lanmark= lanmarks[0]
+        is_real, antispoof_score = antispoof_model.analyze(img=cv_image, facial_area=tuple( face))
         input_image = mtcnn_inceptionresnetV1(image)
-        input_image = inceptionresnetV1_transform(input_image)
 
-        print(f'Antispoof score: {antispoof_score}, Is real: {is_real}')
 
-    else:
-        print("No faces detected!")
-        return None, None
-    
-    embedding = recogn_model(input_image)
-    return embedding, is_real
+    return input_image, face, prob, lanmark, is_real, antispoof_score
 
 
 
 
 if __name__ == "__main__":
     
-    antispoof_model =FasNet.Fasnet()
+    antispoof_model = Fasnet()
 
-    anc_path  = 'testdata/chipu/002.jpg'
-    pos_path = 'data/dataset/chipu/004.jpg'
-    neg_path = 'data/dataset/sontung/001.jpg'
+    # anc_path  = 'testdata/chipu/002.jpg'
+    # pos_path = 'data/dataset/chipu/004.jpg'
+    # neg_path = 'data/dataset/sontung/001.jpg'
     
-    select_model = 'inceptionresnetV1'
+    # select_model = 'inceptionresnetV1'
 
-    anc_image = Image.open(anc_path).convert('RGB')
-    pos_image = Image.open(pos_path).convert('RGB')
-    neg_image = Image.open(neg_path).convert('RGB')
+    # anc_image = Image.open(anc_path).convert('RGB')
+    # pos_image = Image.open(pos_path).convert('RGB')
+    # neg_image = Image.open(neg_path).convert('RGB')
 
-    anc_embedding, anc_spool_score= infer(select_model , anc_image, antispoof_model)
-    pos_embedding, pos_spool_score =  infer(select_model , pos_image, antispoof_model)
-    neg_embedding, neg_spool_score=  infer(select_model , neg_image, antispoof_model)
+    # anc_embedding, anc_spool_score, anc_score= infer(select_model , anc_image, antispoof_model)
+    # pos_embedding, pos_spool_score, pos_score =  infer(select_model , pos_image, antispoof_model)
+    # neg_embedding, neg_spool_score, neg_score =  infer(select_model , neg_image, antispoof_model)
 
-    print(anc_spool_score)
-    print(pos_spool_score)
-    print(neg_spool_score)
+    # print(anc_spool_score, anc_score)
+    # print(pos_spool_score, pos_score)
+    # print(neg_spool_score, neg_score)
 
-    l2_distance = PairwiseDistance(p=2)
+    # l2_distance = PairwiseDistance(p=2)
 
-    dist1 =  l2_distance.forward(anc_embedding, pos_embedding)
-    dist2 =  l2_distance.forward(anc_embedding, neg_embedding)
-
-
-    cosine_similarity = F.cosine_similarity
-
-    similarity_pos = cosine_similarity(anc_embedding, pos_embedding, dim=1)
-    similarity_neg = cosine_similarity(anc_embedding, neg_embedding, dim=1)
-
-    print('l2:')
-    print(dist1.item())
-    print(dist2.item())
-    print('cosine:')
-    print(similarity_pos.item())
-    print(similarity_neg.item())
+    # dist1 =  l2_distance.forward(anc_embedding, pos_embedding)
+    # dist2 =  l2_distance.forward(anc_embedding, neg_embedding)
 
 
+    # cosine_similarity = F.cosine_similarity
 
+    # similarity_pos = cosine_similarity(anc_embedding, pos_embedding, dim=1)
+    # similarity_neg = cosine_similarity(anc_embedding, neg_embedding, dim=1)
 
+    # print('l2:')
+    # print(dist1.item())
+    # print(dist2.item())
+    # print('cosine:')
+    # print(similarity_pos.item())
+    # print(similarity_neg.item())
+
+    image = Image.open('testdata/thaotam/003.jpg').convert('RGB')
+    input_image, face, prob, landmark, is_real, antispoof_score = get_align(image, antispoof_model)
+
+    # In các thông tin nhận diện
+    print(input_image.shape)
+    print(face)
+    print(prob)
+    print(landmark)
+    print(is_real)
+    print(antispoof_score)
+
+    # Chuyển ảnh sang dạng numpy array và đổi màu từ RGB sang BGR cho OpenCV
+    image = np.array(image)
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+    # Vẽ hình chữ nhật bao quanh khuôn mặt
+    x1, y1, x2, y2 = map(int, face)
+    cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+    # Hiển thị xác suất nhận diện khuôn mặt
+    cv2.putText(image, f"Face {prob:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+    # Vẽ các điểm landmark (các chấm)
+    for (x, y) in landmark:
+        cv2.circle(image, (int(x), int(y)), 2, (0, 0, 255), -1)  # Chấm màu đỏ, bán kính 2
+
+    # Tính toán các yếu tố như độ nghiêng, lệch và khoảng cách
+    left_eye, right_eye = landmark[0], landmark[1]
+    eye_distance = np.linalg.norm(np.array(left_eye) - np.array(right_eye))
+
+    # Kiểm tra độ lệch trái/phải
+    nose = landmark[2]
+    nose_to_left_eye = np.linalg.norm(nose - left_eye)
+    nose_to_right_eye = np.linalg.norm(nose - right_eye)
+
+    if nose_to_left_eye > nose_to_right_eye:
+        print("Face is turned to the right")
+    elif nose_to_left_eye < nose_to_right_eye:
+        print("Face is turned to the left")
+    else:
+        print("Face is centered horizontally")
+
+    # Kiểm tra độ nghiêng (khoảng cách giữa hai mắt)
+    if eye_distance < 50:
+        print("Face might be rotated.")
+    elif eye_distance > 120:
+        print("Face is too far or too close.")
+
+    # Kiểm tra độ quay lên/xuống (so sánh giữa mũi và miệng)
+    mouth_top = landmark[4]
+    mouth_bottom = landmark[3]
+    mouth_distance = np.linalg.norm(mouth_top - mouth_bottom)
+
+    if mouth_distance < 40:
+        print("Face might be tilted down.")
+    elif mouth_distance > 100:
+        print("Face might be tilted up.")
+
+    # Hiển thị ảnh với các điểm landmark và thông tin
+    cv2.imshow('image', image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    

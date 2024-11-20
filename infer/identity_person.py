@@ -1,7 +1,7 @@
 
 import torch
 import os
-from .infer_image import infer, infer2
+from .infer_image import infer, get_align
 from torch.nn.modules.distance import PairwiseDistance
 import cv2
 from PIL import Image
@@ -10,118 +10,115 @@ from .getface import yolo
 import torch.nn.functional as F
 from collections import Counter
 import numpy as np
-
+from models.spoofing.FasNet import Fasnet
+from .utils import get_model
+from collections import defaultdict
 
 
 l2_distance = PairwiseDistance(p=2)
 device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
+antispoof_model = Fasnet()
 
 
-def find_closest_person(pred_path, embeddings, names, recogn_model_name, distance_mode):
-    image = Image.open(pred_path).convert('RGB')
-    pred_embed = infer(recogn_model_name, image)
-    if isinstance(pred_embed, torch.Tensor):
-        pred_embed = pred_embed.cpu()
+def find_closest_person(pred_embed, embeddings, image2class, distance_mode='cosine'):
+    """
+    Hàm tính toán khoảng cách trung bình giữa pred_embed và các lớp trong cơ sở dữ liệu và trả về lớp gần nhất.
+    
+    Parameters:
+    - pred_embed (torch.Tensor): Embedding của ảnh cần nhận diện.
+    - embeddings (list): Danh sách các embeddings của ảnh trong cơ sở dữ liệu.
+    - image2class (dict): Mảng ánh xạ giữa index ảnh và lớp tương ứng (từ 0 đến n_classes-1).
+    - distance_mode (str): 'cosine' cho cosine similarity, 'l2' cho L2 distance.
 
+    Returns:
+    - avg_distances (list): Mảng chứa khoảng cách trung bình từ pred_embed đến mỗi lớp.
+    - best_class (int): Chỉ số lớp gần nhất (có khoảng cách trung bình nhỏ nhất hoặc lớn nhất tùy vào distance_mode).
+    """
+    # Chuyển embeddings thành tensor
     embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
 
+    # Lưu tổng distances và số lượng của mỗi lớp
+    total_distances = defaultdict(float)  # Lưu tổng distances cho mỗi class
+    counts = defaultdict(int)  # Lưu số lần gặp mỗi class
 
-    total_distances = {}
-    counts = {}
-    distances = None
-
+    # Tính toán distances giữa pred_embed và tất cả các embeddings
     if distance_mode == 'cosine':
         distances = F.cosine_similarity(pred_embed, embeddings_tensor)
     else:
-        distances = torch.norm(embeddings_tensor - pred_embed, dim=1).detach().cpu().numpy()
+        distances = torch.norm(embeddings_tensor - pred_embed, dim=1).cpu().numpy()
 
-    for i, name in enumerate(names):
-        
-        distance = distances[i]
-        if name not in total_distances:
-            total_distances[name] = 0
-            counts[name] = 0
-        total_distances[name] += distance
-        counts[name] += 1
+    # Duyệt qua tất cả các embeddings và tính tổng distance cho từng lớp
+    for i, name in enumerate(embeddings):
+        # Lấy class của ảnh dựa trên image2class
+        class_label = image2class.get(i, None)
 
-    avg_distances = {name: total_distances[name] / counts[name] for name in total_distances}
+        if class_label is not None:
+            total_distances[class_label] += distances[i]
+            counts[class_label] += 1
 
-    name_of_person = 'Unknown'
+    # Tính toán trung bình distance cho mỗi class
+    num_classes = max(image2class.values()) + 1  # Đảm bảo số lớp chính xác
+    avg_distances = [(total_distances[class_label] / counts[class_label]).item() if counts[class_label] > 0 else float('inf') 
+                     for class_label in range(num_classes)]
 
-    if distance_mode =='l2':
-        name_of_person = min(avg_distances, key=avg_distances.get)
-    else: 
-        name_of_person = max(avg_distances, key=avg_distances.get)
+    # Tìm lớp có distance trung bình nhỏ nhất hoặc lớn nhất
+    if distance_mode == 'l2':
+        best_class = min(range(num_classes), key=lambda x: avg_distances[x])
+    else:
+        best_class = max(range(num_classes), key=lambda x: avg_distances[x])
 
-    
-    img = cv2.imread(pred_path)
-    results = yolo(img)
-    if results[0].boxes is not None:
-        boxes = results[0].boxes.xyxy.cpu().numpy()
-        x1, y1, x2, y2 = map(int, boxes[0])
-        cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 1)
-        cv2.putText(img, name_of_person, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-
-    cv2.imshow('Face Recognition', img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-    return avg_distances, name_of_person
+    result = {
+        'avg_distances': avg_distances,
+        'best_class': best_class
+    }
+    return result
 
 
-def find_closest_person_vote(pred_path, embeddings, names, recogn_model_name, distance_mode, k=5):
-    image = Image.open(pred_path).convert('RGB')
-    pred_embed = infer(recogn_model_name, image)
-    if isinstance(pred_embed, torch.Tensor):
-        pred_embed = pred_embed.cpu()
-
+def find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode= 'cosine', k=5):
     embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
 
+    # Tính khoảng cách
     if distance_mode == 'cosine':
         distances = F.cosine_similarity(pred_embed, embeddings_tensor).cpu().detach().numpy()
     else:
-        distances = torch.norm(embeddings_tensor - pred_embed, dim=1).detach().cpu().numpy().cpu().detach().numpy()
+        distances = torch.norm(embeddings_tensor - pred_embed, dim=1).detach().cpu().numpy()
 
-    # Find the k smallest distances
+    # Tìm `k` chỉ số gần nhất
     if distance_mode == 'l2':
         k_smallest_indices = np.argsort(distances)[:k]
     else:
-        k_smallest_indices = np.argsort(-distances)[:k]  # for cosine similarity, larger is closer
+        k_smallest_indices = np.argsort(-distances)[:k]  # Lớn hơn là gần hơn với cosine similarity
 
-    # Get the names associated with the k smallest distances
-    k_nearest_names = [names[i] for i in k_smallest_indices]
+    # Tìm lớp của `k` ảnh gần nhất
+    k_nearest_classes = [image2class[idx] for idx in k_smallest_indices]
 
-    # Vote for the most common class
-    most_common_name = Counter(k_nearest_names).most_common(1)[0][0]
+    # Đếm số phiếu cho mỗi lớp
+    class_counts = Counter(k_nearest_classes)
 
-    img = cv2.imread(pred_path)
-    results = yolo(img)
-    if results[0].boxes is not None:
-        boxes = results[0].boxes.xyxy.cpu().numpy()
-        x1, y1, x2, y2 = map(int, boxes[0])
-        cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 1)
-        cv2.putText(img, most_common_name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    # Tìm lớp có số phiếu cao nhất
+    best_class_index = class_counts.most_common(1)[0][0]
 
-    cv2.imshow('Face Recognition', img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-    return most_common_name
+    result = {
+        'best_class': best_class_index,
+        'k_nearest_classes': k_nearest_classes
+    }
+    return result
 
 
 if __name__ == '__main__':
 
     recogn_model_name= 'inceptionresnetV1'
-    test_folder_path = 'testdata/chipu'
-    embedding_file_path = f'data/embedding_names/{recogn_model_name}_embeddings.npy'
-    names_file_path = f'data/embedding_names/{recogn_model_name}_names.pkl'
+    embedding_file_path = f'data/data_source/{recogn_model_name}_embeddings.npy'
+    image2class_file_path = f'data/data_source/{recogn_model_name}_image2class.pkl'
    
-    embeddings, names = load_embeddings_and_names(embedding_file_path, names_file_path)
+    embeddings, image2class = load_embeddings_and_names(embedding_file_path, image2class_file_path)
 
-
-    for file_name in os.listdir(test_folder_path):
-        pred_path = os.path.join(test_folder_path, file_name)
-        name_of_person = find_closest_person_vote(pred_path, embeddings, names, recogn_model_name, 'cosine', 10)
+  
+    recogn_model = get_model(recogn_model_name)
+    image_path = 'testdata/sontung/008.jpg'
+    image = Image.open(image_path).convert('RGB')
+    align_image, faces, probs, lanmark, is_real, antispoof_score  = get_align(image, antispoof_model)
+    pred_embed= infer(recogn_model, align_image)
+    class_index = find_closest_person_vote(pred_embed, embeddings, image2class, 'cosine')
    
-
-   
+    print(class_index)

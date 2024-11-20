@@ -5,82 +5,142 @@ from .infer_image import infer
 from .get_embedding import load_embeddings_and_names
 from .getface import yolo
 from torch.nn.modules.distance import PairwiseDistance
+from PIL import Image
+from models.spoofing.FasNet import Fasnet
+import numpy as np
+from collections import Counter
+from .getface import mtcnn_inceptionresnetV1
+from models.face_detect.OpenCv import OpenCvClient
+from .infer_image import infer, get_align
+from .utils import get_model
+from gtts import gTTS
+import pygame
+import os
 
-# Khởi tạo biến
 l2_distance = PairwiseDistance(p=2)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+antispoof_model = Fasnet()
+opencv = OpenCvClient()
 
-def find_closest_person(pred_embed, embeddings, names, distance_mode):
-    if isinstance(pred_embed, torch.Tensor):
-        pred_embed = pred_embed.cpu()
 
-    embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
+def infer_camera(embeddings, names, recogn_model_name, distance_mode='cosine', min_face_area=40000, threshold=0.7, required_images=50):
+ 
+   
+    cap = cv2.VideoCapture(0)
 
-    total_distances = {}
-    counts = {}
-    
-    if distance_mode == 'cosine':
-        distances = F.cosine_similarity(pred_embed, embeddings_tensor)
-    else:
-        distances = torch.norm(embeddings_tensor - pred_embed, dim=1).detach().cpu().numpy()
-
-    for i, name in enumerate(names):
-        distance = distances[i].item()  # Chuyển đổi tensor thành số
-        if name not in total_distances:
-            total_distances[name] = 0
-            counts[name] = 0
-        total_distances[name] += distance
-        counts[name] += 1
-
-    avg_distances = {name: total_distances[name] / counts[name] for name in total_distances}
-
-    if distance_mode == 'l2':
-        name_of_person = min(avg_distances, key=avg_distances.get)
-    else:
-        name_of_person = max(avg_distances, key=avg_distances.get)
-
-    return avg_distances, name_of_person
-
-def infer_video(video_path, embeddings, names, recogn_model_name, distance_mode):
-    cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        print(f"Error: Could not open video {video_path}")
+        print("Không thể mở camera")
         return
 
-    while cap.isOpened():
+    valid_images = []  # Danh sách lưu các input image hợp lệ
+    
+    # Các biến để theo dõi trạng thái trước đó
+    previous_message = 0   # 0: don't have face, 1: detect face, 2: face is skewed, 3: face is too far away, 4: fake face or low confident
+
+    while True:
         ret, frame = cap.read()
         if not ret:
+            print("Không thể chụp được hình ảnh")
             break
 
-        img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Gọi hàm nhận diện khuôn mặt và chống giả mạo
+        input_image, face, prob, landmark, is_real, antispoof_score = get_align(frame, antispoof_model)
 
-        pred_embed = infer(recogn_model_name, img)
+        # Kiểm tra khuôn mặt và xử lý các trường hợp khác
+        if face is not None:  # Nếu phát hiện khuôn mặt
+            x1, y1, x2, y2 = map(int, face)
+            if prob > threshold:  # Chỉ vẽ nếu confidence vượt ngưỡng
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(frame, f"Face {prob:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-        avg_distances, name_of_person = find_closest_person(pred_embed, embeddings, names, distance_mode)
+            area = (face[2] - face[0]) * (face[3] - face[1])
+        
+            if prob > threshold and is_real:
+                # Tính trung tâm khuôn mặt
+                center = np.mean(landmark, axis=0)
+                height, width, _ = frame.shape
+                center_x, center_y = center
 
-        results = yolo(frame)
-        if results[0].boxes is not None:
-            boxes = results[0].boxes.xyxy.cpu().numpy()
-            for box in boxes:
-                x1, y1, x2, y2 = map(int, box)
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
-                cv2.putText(frame, name_of_person, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                # Kiểm tra khuôn mặt ở giữa khung hình
+                distance_from_center = np.sqrt((center_x - width / 2) ** 2 + (center_y - height / 2) ** 2)
+                if area > min_face_area:
 
-        cv2.imshow('Face Recognition', frame)
+                    if width * 0.15 < center_x < width * 0.85 and height * 0.15 < center_y < height * 0.85 and distance_from_center < min(width, height) * 0.4:
+                        if previous_message != 1:
+                            print('Giữ khuôn mặt yên')
+                            previous_message = 1
+                        valid_images.append(input_image)
+
+                    else:
+                        if previous_message != 2:
+                            print('Di chuyển khuôn mặt vào giữa khung hình')
+                            previous_message = 2
+
+                else:
+                    if previous_message != 3:
+                        print("Đưa khuôn mặt lại gần hơn")
+                        previous_message = 3
+        
+            else:
+                if previous_message != 4:
+                    print('Khuôn mặt giả hoặc độ tin cậy quá thấp')
+                    previous_message = 4
+
+        else:
+            if previous_message != 0:
+                print("Không phát hiện khuôn mặt")
+                previous_message = 0
+
+        cv2.imshow('FACE RECOGNITON', frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
+        # Dừng vòng lặp nếu đã thu thập đủ số ảnh hợp lệ
+        if len(valid_images) >= required_images:
+            print(f"Đã thu thập đủ {required_images} ảnh hợp lệ.")
+            break
+     
+    # Giải phóng camera và đóng cửa sổ
     cap.release()
     cv2.destroyAllWindows()
 
+    return valid_images
+
+
+
+def display_images(images, delay=100):
+    recogn_model = get_model('inceptionresnetV1')
+    if not images:
+        print("No images to display.")
+        return
+
+    for idx, image in enumerate(images):
+        image = np.array(image.permute(1,2,0))
+        if not isinstance(image, np.ndarray):
+            print(f"Invalid image at index {idx}. Skipping...")
+            continue
+        # Hiển thị hình ảnh với tên cửa sổ là thứ tự của ảnh
+        cv2.imshow(f'Image {idx + 1}', image)
+        cv2.waitKey(delay)  # Đợi trong khoảng thời gian delay trước khi hiển thị ảnh tiếp theo
+        cv2.destroyWindow(f'Image {idx + 1}')  # Đóng cửa sổ hiện tại
+
+    cv2.destroyAllWindows()
+
+
+
 if __name__ == '__main__':
-    # Ví dụ gọi hàm
-    video_path = 'testdata/sontung_video2.mp4'
+ 
     recogn_model_name = 'inceptionresnetV1'
-    embedding_file_path = f'data/embedding_names/{recogn_model_name}_embeddings.npy'
-    names_file_path = f'data/embedding_names/{recogn_model_name}_names.pkl'
+    embedding_file_path = f'data/data_source/{recogn_model_name}_embeddings.npy'
+    names_file_path = f'data/data_source/{recogn_model_name}_image2class.pkl'
    
     embeddings, names = load_embeddings_and_names(embedding_file_path, names_file_path)
 
-    infer_video(video_path, embeddings, names, recogn_model_name, 'l2')
+    valid_image = infer_camera(embeddings, names, recogn_model_name, 'cosine')
+
+    display_images(valid_image)
+  
+
+   
+

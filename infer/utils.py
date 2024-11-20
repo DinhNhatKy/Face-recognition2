@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from models.inceptionresnetV1 import InceptionResnetV1
-from models.resnet import Resnet34Triplet
+from models.face_recogn.inceptionresnetV1 import InceptionResnetV1
+from models.face_recogn.resnet import Resnet34Triplet
 device  = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -9,7 +9,7 @@ def get_model(model_name):
     model = None
 
     if model_name == 'resnet34':
-        checkpoint = torch.load('pretrained/model_resnet34_triplet.pt', weights_only = False, map_location=device)
+        checkpoint = torch.load('models/pretrained/model_resnet34_triplet.pt', weights_only = False, map_location=device)
         model = Resnet34Triplet(
             embedding_dimension=checkpoint['embedding_dimension'],
             pretrained=True
