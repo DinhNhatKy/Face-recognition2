@@ -42,10 +42,12 @@ def find_closest_person(pred_embed, embeddings, image2class, distance_mode='cosi
     counts = defaultdict(int)  # Lưu số lần gặp mỗi class
 
     # Tính toán distances giữa pred_embed và tất cả các embeddings
-    if distance_mode == 'cosine':
-        distances = F.cosine_similarity(pred_embed, embeddings_tensor)
+    if distance_mode == 'l2':
+        distances = torch.norm(embeddings_tensor - pred_embed, dim=1).detach().cpu().numpy()
+       
     else:
-        distances = torch.norm(embeddings_tensor - pred_embed, dim=1).cpu().numpy()
+        distances = F.cosine_similarity(pred_embed, embeddings_tensor)
+      
 
     # Duyệt qua tất cả các embeddings và tính tổng distance cho từng lớp
     for i, name in enumerate(embeddings):
@@ -61,20 +63,18 @@ def find_closest_person(pred_embed, embeddings, image2class, distance_mode='cosi
     avg_distances = [(total_distances[class_label] / counts[class_label]).item() if counts[class_label] > 0 else float('inf') 
                      for class_label in range(num_classes)]
 
-    # Tìm lớp có distance trung bình nhỏ nhất hoặc lớn nhất
     if distance_mode == 'l2':
         best_class = min(range(num_classes), key=lambda x: avg_distances[x])
+        if avg_distances[best_class] < 1 :
+            return best_class
     else:
         best_class = max(range(num_classes), key=lambda x: avg_distances[x])
+        if avg_distances[best_class] > 0.55:
+            return best_class
+    return -1
+ 
 
-    result = {
-        'avg_distances': avg_distances,
-        'best_class': best_class
-    }
-    return result
-
-
-def find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode= 'cosine', k=5):
+def find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode= 'cosine', k=10, threhold = 0.85):
     embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
 
     # Tính khoảng cách
@@ -97,28 +97,30 @@ def find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode=
 
     # Tìm lớp có số phiếu cao nhất
     best_class_index = class_counts.most_common(1)[0][0]
-
-    result = {
-        'best_class': best_class_index,
-        'k_nearest_classes': k_nearest_classes
-    }
-    return result
+    if k_nearest_classes.count(best_class_index) > threhold * len(k_nearest_classes):
+        return best_class_index
+    else:
+        return -1
+    
 
 
 if __name__ == '__main__':
 
     recogn_model_name= 'inceptionresnetV1'
-    embedding_file_path = f'data/data_source/{recogn_model_name}_embeddings.npy'
-    image2class_file_path = f'data/data_source/{recogn_model_name}_image2class.pkl'
-   
-    embeddings, image2class = load_embeddings_and_names(embedding_file_path, image2class_file_path)
+    
+    embedding_file_path= 'data/data_source/inceptionresnetV1_embeddings.npy'
+    image2class_file_path = 'data/data_source/inceptionresnetV1_image2class.pkl'
+    index2class_file_path = 'data/data_source/inceptionresnetV1_index2class.pkl'
 
-  
+    embeddings, image2class, index2class = load_embeddings_and_names(embedding_file_path, image2class_file_path, index2class_file_path)
+
+
     recogn_model = get_model(recogn_model_name)
-    image_path = 'testdata/sontung/008.jpg'
-    image = Image.open(image_path).convert('RGB')
-    align_image, faces, probs, lanmark, is_real, antispoof_score  = get_align(image, antispoof_model)
-    pred_embed= infer(recogn_model, align_image)
-    class_index = find_closest_person_vote(pred_embed, embeddings, image2class, 'cosine')
    
-    print(class_index)
+    image_path = 'testdata/test.jpg'
+    image = Image.open(image_path).convert('RGB')
+    align_image, faces, probs, lanmark  = get_align(image)
+    pred_embed= infer(recogn_model, align_image)
+    result = find_closest_person(pred_embed, embeddings, image2class, 'cosine')
+    print(result)
+    

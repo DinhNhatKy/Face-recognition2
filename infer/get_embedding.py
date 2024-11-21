@@ -27,7 +27,7 @@ def create_data_embeddings(data_gallary_path, recognition_model_name, save_path)
         return x[0]
 
     dataset = datasets.ImageFolder(data_gallary_path)
-    dataset.idx_to_class = {i: c for c, i in dataset.class_to_idx.items()}
+    dataset.index2class = {i: c for c, i in dataset.class_to_idx.items()}
     loader = DataLoader(dataset, collate_fn=collate_fn, num_workers=workers)
 
     aligned = []  # List of images in the gallery
@@ -60,38 +60,49 @@ def create_data_embeddings(data_gallary_path, recognition_model_name, save_path)
         embedding_file_path = os.path.join(save_path, f"{recognition_model_name}_embeddings.npy")
         np.save(embedding_file_path, embeddings)
 
-        names_file_path = os.path.join(save_path, f"{recognition_model_name}_image2class.pkl")
-        with open(names_file_path, 'wb') as f:
+        image2class_file_path = os.path.join(save_path, f"{recognition_model_name}_image2class.pkl")
+        with open(image2class_file_path, 'wb') as f:
             pickle.dump(image2class, f)
 
+        index2class_file_path = os.path.join(save_path, f"{recognition_model_name}_index2class.pkl")
+        with open(index2class_file_path, 'wb') as f:
+            pickle.dump(dataset.index2class, f)
+
         print(f"Embeddings saved to {embedding_file_path}")
-        print(f"Names saved to {names_file_path}")
+        print(f"image2class saved to {image2class_file_path}")
+        print(f"index2class saved to {index2class_file_path}")
         
-        return embeddings, image2class
+        return embeddings, image2class, dataset.index2class
     else:
         print("No aligned images found.")
        
-def load_embeddings_and_names(embedding_file_path, image2class_file_path):
+def load_embeddings_and_names(embedding_file_path, image2class_file_path, index2class_file_path):
     
     embeddings = np.load(embedding_file_path)
     with open(image2class_file_path, 'rb') as f:
         image2class = pickle.load(f)
 
-    return embeddings, image2class
+    with open(index2class_file_path, 'rb') as f:
+        index2class = pickle.load(f)
+
+    return embeddings, image2class, index2class
 
 if __name__ == '__main__':
     
     data_gallary_path = 'data/dataset'
     embedding_save_path = 'data/data_source'
-    embeddings, image2class = create_data_embeddings(data_gallary_path, 'inceptionresnetV1', embedding_save_path )
+    # embeddings, image2class, index2class = create_data_embeddings(data_gallary_path, 'inceptionresnetV1', embedding_save_path )
  
 
-    # embedding_file_path= 'data/data_source/inceptionresnetV1_embeddings.npy'
-    # image2class_file_path = 'data/data_source/inceptionresnetV1_image2class.pkl'
+    embedding_file_path= 'data/data_source/inceptionresnetV1_embeddings.npy'
+    image2class_file_path = 'data/data_source/inceptionresnetV1_image2class.pkl'
+    index2class_file_path = 'data/data_source/inceptionresnetV1_index2class.pkl'
 
-    # embeddings, image2class = load_embeddings_and_names(embedding_file_path, image2class_file_path)
+    embeddings, image2class, index2class = load_embeddings_and_names(embedding_file_path, image2class_file_path, index2class_file_path)
 
     
     print(embeddings.shape)
     print(image2class)
+    print(index2class)
+
  

@@ -52,29 +52,21 @@ def infer(recogn_model, align_image):
         return None
     
 
-def get_align(image, antispoof_model):
-    cv_image = np.array(image)
+def get_align(image):
     face= None
-    is_real = False
     input_image = image
     prob = 0
     lanmark = None
-    antispoof_score = None
 
     faces, probs, lanmarks = mtcnn_inceptionresnetV1.detect(image, landmarks= True)
-   
 
     if faces is not None and len(faces) > 0:
         face = faces[0] # get highest area bboxes
         prob = probs[0]
         lanmark= lanmarks[0]
-        is_real, antispoof_score = antispoof_model.analyze(img=cv_image, facial_area=tuple( face))
         input_image = mtcnn_inceptionresnetV1(image)
 
-
-    return input_image, face, prob, lanmark, is_real, antispoof_score
-
-
+    return input_image, face, prob, lanmark
 
 
 if __name__ == "__main__":
@@ -117,16 +109,14 @@ if __name__ == "__main__":
     # print(similarity_pos.item())
     # print(similarity_neg.item())
 
-    image = Image.open('testdata/thaotam/003.jpg').convert('RGB')
-    input_image, face, prob, landmark, is_real, antispoof_score = get_align(image, antispoof_model)
+    image = Image.open('testdata/baejun/004.jpg').convert('RGB')
+    input_image, face, prob, landmark = get_align(image)
 
     # In các thông tin nhận diện
     print(input_image.shape)
     print(face)
     print(prob)
     print(landmark)
-    print(is_real)
-    print(antispoof_score)
 
     # Chuyển ảnh sang dạng numpy array và đổi màu từ RGB sang BGR cho OpenCV
     image = np.array(image)
@@ -143,39 +133,7 @@ if __name__ == "__main__":
     for (x, y) in landmark:
         cv2.circle(image, (int(x), int(y)), 2, (0, 0, 255), -1)  # Chấm màu đỏ, bán kính 2
 
-    # Tính toán các yếu tố như độ nghiêng, lệch và khoảng cách
-    left_eye, right_eye = landmark[0], landmark[1]
-    eye_distance = np.linalg.norm(np.array(left_eye) - np.array(right_eye))
 
-    # Kiểm tra độ lệch trái/phải
-    nose = landmark[2]
-    nose_to_left_eye = np.linalg.norm(nose - left_eye)
-    nose_to_right_eye = np.linalg.norm(nose - right_eye)
-
-    if nose_to_left_eye > nose_to_right_eye:
-        print("Face is turned to the right")
-    elif nose_to_left_eye < nose_to_right_eye:
-        print("Face is turned to the left")
-    else:
-        print("Face is centered horizontally")
-
-    # Kiểm tra độ nghiêng (khoảng cách giữa hai mắt)
-    if eye_distance < 50:
-        print("Face might be rotated.")
-    elif eye_distance > 120:
-        print("Face is too far or too close.")
-
-    # Kiểm tra độ quay lên/xuống (so sánh giữa mũi và miệng)
-    mouth_top = landmark[4]
-    mouth_bottom = landmark[3]
-    mouth_distance = np.linalg.norm(mouth_top - mouth_bottom)
-
-    if mouth_distance < 40:
-        print("Face might be tilted down.")
-    elif mouth_distance > 100:
-        print("Face might be tilted up.")
-
-    # Hiển thị ảnh với các điểm landmark và thông tin
     cv2.imshow('image', image)
     cv2.waitKey(0)
     cv2.destroyAllWindows()

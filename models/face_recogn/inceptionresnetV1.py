@@ -306,7 +306,7 @@ def load_weights(mdl, name):
     if name == 'vggface2':
         model_name = '20180402-114759-vggface2.pt'
     elif name == 'casia-webface':
-        model_name = '20180402-114759-vggface2.pt'
+        model_name = '20180408-102900-casia-webface.pt'
     else:
         raise ValueError('Pretrained models only exist for "vggface2" and "casia-webface"')
 
