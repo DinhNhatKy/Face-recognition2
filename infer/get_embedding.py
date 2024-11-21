@@ -91,14 +91,14 @@ if __name__ == '__main__':
     
     data_gallary_path = 'data/dataset'
     embedding_save_path = 'data/data_source'
-    # embeddings, image2class, index2class = create_data_embeddings(data_gallary_path, 'inceptionresnetV1', embedding_save_path )
+    embeddings, image2class, index2class = create_data_embeddings(data_gallary_path, 'inceptionresnetV1', embedding_save_path )
  
 
     embedding_file_path= 'data/data_source/inceptionresnetV1_embeddings.npy'
     image2class_file_path = 'data/data_source/inceptionresnetV1_image2class.pkl'
     index2class_file_path = 'data/data_source/inceptionresnetV1_index2class.pkl'
 
-    embeddings, image2class, index2class = load_embeddings_and_names(embedding_file_path, image2class_file_path, index2class_file_path)
+    # embeddings, image2class, index2class = load_embeddings_and_names(embedding_file_path, image2class_file_path, index2class_file_path)
 
     
     print(embeddings.shape)

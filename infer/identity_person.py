@@ -46,10 +46,9 @@ def find_closest_person(pred_embed, embeddings, image2class, distance_mode='cosi
         distances = torch.norm(embeddings_tensor - pred_embed, dim=1).detach().cpu().numpy()
        
     else:
-        distances = F.cosine_similarity(pred_embed, embeddings_tensor)
-      
+        similarities = F.cosine_similarity(pred_embed, embeddings_tensor)
+        distances = (1 - similarities).detach().cpu().numpy() 
 
-    # Duyệt qua tất cả các embeddings và tính tổng distance cho từng lớp
     for i, name in enumerate(embeddings):
         # Lấy class của ảnh dựa trên image2class
         class_label = image2class.get(i, None)
@@ -63,25 +62,30 @@ def find_closest_person(pred_embed, embeddings, image2class, distance_mode='cosi
     avg_distances = [(total_distances[class_label] / counts[class_label]).item() if counts[class_label] > 0 else float('inf') 
                      for class_label in range(num_classes)]
 
+
+    return avg_distances
     if distance_mode == 'l2':
         best_class = min(range(num_classes), key=lambda x: avg_distances[x])
-        if avg_distances[best_class] < 1 :
+        if avg_distances[best_class] < 1.1 :
             return best_class
     else:
         best_class = max(range(num_classes), key=lambda x: avg_distances[x])
-        if avg_distances[best_class] > 0.55:
+        if avg_distances[best_class] > 0.5:
             return best_class
     return -1
  
 
-def find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode= 'cosine', k=10, threhold = 0.85):
+
+def find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode='cosine', k=10, threshold=0.85):
     embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
 
     # Tính khoảng cách
     if distance_mode == 'cosine':
         distances = F.cosine_similarity(pred_embed, embeddings_tensor).cpu().detach().numpy()
+        valid_condition = lambda x: x > 0.6  # Điều kiện với cosine similarity
     else:
         distances = torch.norm(embeddings_tensor - pred_embed, dim=1).detach().cpu().numpy()
+        valid_condition = lambda x: x < 0.9  # Điều kiện với L2
 
     # Tìm `k` chỉ số gần nhất
     if distance_mode == 'l2':
@@ -89,20 +93,28 @@ def find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode=
     else:
         k_smallest_indices = np.argsort(-distances)[:k]  # Lớn hơn là gần hơn với cosine similarity
 
-    # Tìm lớp của `k` ảnh gần nhất
+    # Kiểm tra điều kiện mẫu
+    valid_distances = [distances[idx] for idx in k_smallest_indices if valid_condition(distances[idx])]
+
+    if len(valid_distances) < k / 2:
+        return -1  # Không đủ mẫu thỏa mãn điều kiện
+
+    # Lấy các lớp tương ứng với `k` chỉ số gần nhất
     k_nearest_classes = [image2class[idx] for idx in k_smallest_indices]
 
-    # Đếm số phiếu cho mỗi lớp
+    # Đếm số lần xuất hiện của các lớp
     class_counts = Counter(k_nearest_classes)
 
-    # Tìm lớp có số phiếu cao nhất
-    best_class_index = class_counts.most_common(1)[0][0]
-    if k_nearest_classes.count(best_class_index) > threhold * len(k_nearest_classes):
+    # Lấy lớp xuất hiện nhiều nhất
+    best_class_index, count = class_counts.most_common(1)[0]
+
+    return k_nearest_classes
+    # Kiểm tra ngưỡng đa số
+    if count >= threshold * len(k_nearest_classes):
         return best_class_index
     else:
         return -1
     
-
 
 if __name__ == '__main__':
 
@@ -117,7 +129,7 @@ if __name__ == '__main__':
 
     recogn_model = get_model(recogn_model_name)
    
-    image_path = 'testdata/test.jpg'
+    image_path = 'testdata/sontung/005.jpg'
     image = Image.open(image_path).convert('RGB')
     align_image, faces, probs, lanmark  = get_align(image)
     pred_embed= infer(recogn_model, align_image)

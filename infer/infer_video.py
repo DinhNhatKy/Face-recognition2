@@ -24,7 +24,7 @@ antispoof_model = Fasnet()
 opencv = OpenCvClient()
 
 
-def infer_camera(min_face_area=10000, bbox_threshold=0.7, required_images=14):
+def infer_camera(min_face_area=10000, bbox_threshold=0.7, required_images=16):
    
     cap = cv2.VideoCapture(0)
 
@@ -198,9 +198,8 @@ def infer_video(video_path, min_face_area=10000, bbox_threshold=0.7, required_im
 
 
 
-def check_validation(images, embeddings, image2class, idx_to_class, recogn_model, is_antispoof= False):
+def check_validation(images, embeddings, image2class, idx_to_class, recogn_model, is_antispoof= False, validation_threhold= 0.7):
     
-
 
     if len(images) == 0:
         print("Không có ảnh để xử lý.")
@@ -215,31 +214,28 @@ def check_validation(images, embeddings, image2class, idx_to_class, recogn_model
         #     if not is_real and score > 0.7:
         #         continue
         pred_embed = infer(recogn_model, image)
-        result = find_closest_person_vote(pred_embed, embeddings, image2class)
+        result = find_closest_person(pred_embed, embeddings, image2class)
+        print(result)
         if result != -1:
             predict_class.append(result)
 
     class_count = Counter(predict_class)
     
-    
-    # Tính ngưỡng đa số (lớn hơn 75% số dự đoán)
-    majority_threshold = len(images) * 0.75
+    majority_threshold = len(images) * validation_threhold
 
-    person_identified = False  # Biến để theo dõi xem có tìm được người nhận diện hay không
+    person_identified = False  
 
-    # Kiểm tra xem có class nào xuất hiện quá 75% số lần không
     for cls, count in class_count.items():
         if count >= majority_threshold:
             person_name = idx_to_class.get(cls, 'Unknown')
             print(f"Người được nhận diện là: {person_name}")
             
-            # Tạo giọng nói bằng gTTS
             tts = gTTS(f"Xin chào {person_name}", lang='vi')
-            tts.save("greeting.mp3")  # Lưu file âm thanh tạm thời
-            os.system("start greeting.mp3")  # Chạy âm thanh (Windows)
+            tts.save("greeting.mp3")  
+            os.system("start greeting.mp3")  
             
             person_identified = True
-            break  # Dừng lại sau khi tìm được người nhận diện đầu tiên thỏa mãn điều kiện
+            break  
     
     if not person_identified:
         print("Unknown person")

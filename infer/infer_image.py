@@ -109,7 +109,7 @@ if __name__ == "__main__":
     # print(similarity_pos.item())
     # print(similarity_neg.item())
 
-    image = Image.open('testdata/baejun/004.jpg').convert('RGB')
+    image = Image.open('testdata/thaotam/006.jpg').convert('RGB')
     input_image, face, prob, landmark = get_align(image)
 
     # In các thông tin nhận diện
