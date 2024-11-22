@@ -20,97 +20,74 @@ device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
 antispoof_model = Fasnet()
 
 
-def find_closest_person(pred_embed, embeddings, image2class, distance_mode='cosine'):
+def find_closest_person(pred_embed, embeddings, image2class, distance_mode='cosine', l2_threshold=1, cosine_threshold=0.5):
     """
     Hàm tính toán khoảng cách trung bình giữa pred_embed và các lớp trong cơ sở dữ liệu và trả về lớp gần nhất.
-    
-    Parameters:
-    - pred_embed (torch.Tensor): Embedding của ảnh cần nhận diện.
-    - embeddings (list): Danh sách các embeddings của ảnh trong cơ sở dữ liệu.
-    - image2class (dict): Mảng ánh xạ giữa index ảnh và lớp tương ứng (từ 0 đến n_classes-1).
-    - distance_mode (str): 'cosine' cho cosine similarity, 'l2' cho L2 distance.
-
-    Returns:
-    - avg_distances (list): Mảng chứa khoảng cách trung bình từ pred_embed đến mỗi lớp.
-    - best_class (int): Chỉ số lớp gần nhất (có khoảng cách trung bình nhỏ nhất hoặc lớn nhất tùy vào distance_mode).
     """
     # Chuyển embeddings thành tensor
     embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
 
-    # Lưu tổng distances và số lượng của mỗi lớp
-    total_distances = defaultdict(float)  # Lưu tổng distances cho mỗi class
-    counts = defaultdict(int)  # Lưu số lần gặp mỗi class
-
-    # Tính toán distances giữa pred_embed và tất cả các embeddings
+    # Tính toán khoảng cách giữa pred_embed và tất cả embeddings
     if distance_mode == 'l2':
+        # Tính khoảng cách L2 (Euclidean distance)
         distances = torch.norm(embeddings_tensor - pred_embed, dim=1).detach().cpu().numpy()
-       
     else:
+        # Tính độ tương đồng Cosine chuyển thành khoảng cách
         similarities = F.cosine_similarity(pred_embed, embeddings_tensor)
-        distances = (1 - similarities).detach().cpu().numpy() 
+        distances = (1 - similarities).detach().cpu().numpy()
 
-    for i, name in enumerate(embeddings):
-        # Lấy class của ảnh dựa trên image2class
-        class_label = image2class.get(i, None)
+    # Chuyển image2class thành mảng NumPy để xử lý nhanh
+    image2class_np = np.array([image2class[i] for i in range(len(embeddings))])
+    
+    # Sử dụng NumPy để tính tổng khoảng cách và số lượng phần tử mỗi lớp
+    num_classes = max(image2class.values()) + 1
+    
+    # Tính tổng khoảng cách cho mỗi lớp
+    total_distances = np.zeros(num_classes, dtype=np.float32)
+    np.add.at(total_distances, image2class_np, distances)
+    
+    # Tính số lượng phần tử mỗi lớp
+    counts = np.zeros(num_classes, dtype=np.int32)
+    np.add.at(counts, image2class_np, 1)
 
-        if class_label is not None:
-            total_distances[class_label] += distances[i]
-            counts[class_label] += 1
+    # Tính trung bình khoảng cách cho mỗi lớp (tránh chia cho 0)
+    avg_distances = np.divide(total_distances, counts, out=np.full_like(total_distances, np.inf), where=counts > 0)
 
-    # Tính toán trung bình distance cho mỗi class
-    num_classes = max(image2class.values()) + 1  # Đảm bảo số lớp chính xác
-    avg_distances = [(total_distances[class_label] / counts[class_label]).item() if counts[class_label] > 0 else float('inf') 
-                     for class_label in range(num_classes)]
-
-
-    return avg_distances
     if distance_mode == 'l2':
-        best_class = min(range(num_classes), key=lambda x: avg_distances[x])
-        if avg_distances[best_class] < 1.1 :
+        best_class = np.argmin(avg_distances)  # Lớp có khoảng cách trung bình nhỏ nhất
+        if avg_distances[best_class] < l2_threshold:
             return best_class
-    else:
-        best_class = max(range(num_classes), key=lambda x: avg_distances[x])
-        if avg_distances[best_class] > 0.5:
+    else:  # Cosine
+        best_class = np.argmin(avg_distances)  # Với Cosine, khoảng cách nhỏ nhất là tốt nhất
+        if avg_distances[best_class] < cosine_threshold:
             return best_class
+    
     return -1
  
 
 
-def find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode='cosine', k=10, threshold=0.85):
+def find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode= 'cosine', k=15, vote_threhold = 0.8, l2_threshold= 1, cosine_threshold= 0.5 ):
+
     embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
-
-    # Tính khoảng cách
-    if distance_mode == 'cosine':
-        distances = F.cosine_similarity(pred_embed, embeddings_tensor).cpu().detach().numpy()
-        valid_condition = lambda x: x > 0.6  # Điều kiện với cosine similarity
-    else:
-        distances = torch.norm(embeddings_tensor - pred_embed, dim=1).detach().cpu().numpy()
-        valid_condition = lambda x: x < 0.9  # Điều kiện với L2
-
-    # Tìm `k` chỉ số gần nhất
     if distance_mode == 'l2':
-        k_smallest_indices = np.argsort(distances)[:k]
+        distances = torch.norm(embeddings_tensor - pred_embed, dim=1).detach().cpu().numpy()
+        for distance in np.sort(distances)[:k]:
+            if distance > l2_threshold:
+                return -1
     else:
-        k_smallest_indices = np.argsort(-distances)[:k]  # Lớn hơn là gần hơn với cosine similarity
-
-    # Kiểm tra điều kiện mẫu
-    valid_distances = [distances[idx] for idx in k_smallest_indices if valid_condition(distances[idx])]
-
-    if len(valid_distances) < k / 2:
-        return -1  # Không đủ mẫu thỏa mãn điều kiện
-
-    # Lấy các lớp tương ứng với `k` chỉ số gần nhất
+        similarities = F.cosine_similarity(pred_embed, embeddings_tensor)
+        distances = (1 - similarities).detach().cpu().numpy() 
+        for distance in  np.sort(distances)[:k]:
+            if distance > cosine_threshold:
+                return -1
+    
+    k_smallest_indices = np.argsort(distances)[:k]
     k_nearest_classes = [image2class[idx] for idx in k_smallest_indices]
-
-    # Đếm số lần xuất hiện của các lớp
     class_counts = Counter(k_nearest_classes)
 
-    # Lấy lớp xuất hiện nhiều nhất
-    best_class_index, count = class_counts.most_common(1)[0]
+    best_class_index = class_counts.most_common(1)[0][0]
 
-    return k_nearest_classes
-    # Kiểm tra ngưỡng đa số
-    if count >= threshold * len(k_nearest_classes):
+    if k_nearest_classes.count(best_class_index) >= vote_threhold * len(k_nearest_classes):
         return best_class_index
     else:
         return -1
@@ -128,11 +105,13 @@ if __name__ == '__main__':
 
 
     recogn_model = get_model(recogn_model_name)
-   
-    image_path = 'testdata/sontung/005.jpg'
-    image = Image.open(image_path).convert('RGB')
-    align_image, faces, probs, lanmark  = get_align(image)
-    pred_embed= infer(recogn_model, align_image)
-    result = find_closest_person(pred_embed, embeddings, image2class, 'cosine')
-    print(result)
-    
+  
+    test_folder = 'testdata/unknown'
+    for i in os.listdir(test_folder):
+        image_path = os.path.join(test_folder, i)
+        image = Image.open(image_path).convert('RGB')
+        align_image, faces, probs, lanmark  = get_align(image)
+        pred_embed= infer(recogn_model, align_image)
+        result = find_closest_person(pred_embed, embeddings, image2class)
+        print(result)
+ 

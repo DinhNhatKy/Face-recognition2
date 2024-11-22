@@ -33,7 +33,7 @@ def infer_camera(min_face_area=10000, bbox_threshold=0.7, required_images=16):
         return
 
     valid_images = []  # Danh sách lưu các input image hợp lệ
-    
+    is_reals = []
     # Các biến để theo dõi trạng thái trước đó
     previous_message = 0   # 0: don't have face, 1: detect face, 2: face is skewed, 3: face is too far away, 4: fake face or low confident
 
@@ -43,11 +43,9 @@ def infer_camera(min_face_area=10000, bbox_threshold=0.7, required_images=16):
             print("Không thể chụp được hình ảnh")
             break
 
-        # Gọi hàm nhận diện khuôn mặt và chống giả mạo
         input_image, face, prob, landmark = get_align(frame)
-
-        # Check for face and handle different conditions
-        if face is not None:  # If a face is detected
+       
+        if face is not None: 
             x1, y1, x2, y2 = map(int, face)
             if prob > bbox_threshold:  # Only draw if the confidence is above the threshold
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
@@ -72,6 +70,10 @@ def infer_camera(min_face_area=10000, bbox_threshold=0.7, required_images=16):
                             os.system("start guide.mp3") 
 
                             previous_message = 1
+                        
+                        is_real, score = antispoof_model.analyze(frame, map(int, face))
+                        print(is_real, score)
+                        is_reals.append((is_real, score))
                         valid_images.append(input_image)
 
                     else:
@@ -105,8 +107,11 @@ def infer_camera(min_face_area=10000, bbox_threshold=0.7, required_images=16):
     # Giải phóng camera và đóng cửa sổ
     cap.release()
     cv2.destroyAllWindows()
-
-    return valid_images
+    result = {
+        'valid_images': valid_images,
+        'is_reals': is_reals
+    }
+    return result
 
 
 
@@ -119,7 +124,7 @@ def infer_video(video_path, min_face_area=10000, bbox_threshold=0.7, required_im
         return
 
     valid_images = []  # List to store valid input images
-
+  
     # Variables to track previous states
     previous_message = 0   # 0: no face, 1: face detected, 2: face is skewed, 3: face is too far, 4: fake face
 
@@ -131,9 +136,13 @@ def infer_video(video_path, min_face_area=10000, bbox_threshold=0.7, required_im
 
         # Call the face alignment and anti-spoofing function
         input_image, face, prob, landmark = get_align(frame)
-     
+    
+
         # Check for face and handle different conditions
         if face is not None:  # If a face is detected
+
+            
+
             x1, y1, x2, y2 = map(int, face)
             if prob > bbox_threshold:  # Only draw if the confidence is above the threshold
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
@@ -198,30 +207,36 @@ def infer_video(video_path, min_face_area=10000, bbox_threshold=0.7, required_im
 
 
 
-def check_validation(images, embeddings, image2class, idx_to_class, recogn_model, is_antispoof= False, validation_threhold= 0.7):
+def check_validation(input, embeddings, image2class, idx_to_class, recogn_model, is_antispoof= False, validation_threhold= 0.7, is_vote= False, distance_mode = 'cosine'):
     
+    valid_images = input['valid_images']
 
-    if len(images) == 0:
+    if len(valid_images) == 0:
         print("Không có ảnh để xử lý.")
         return
     
     predict_class = []
 
-    for image in images:
-        # if is_antispoof:
-        #     antispoof_model = Fasnet()
-        #     is_real, score = antispoof_model.analyze(image, (0, 0 , image.shape[1], image.shape[0]))
-        #     if not is_real and score > 0.7:
-        #         continue
+    for i, image in enumerate(valid_images):
+
+        if is_antispoof:
+            if not input['is_reals'][i][0] and input['is_reals'][i][1]> 0.9:
+                continue
+
         pred_embed = infer(recogn_model, image)
-        result = find_closest_person(pred_embed, embeddings, image2class)
+
+        if is_vote:
+            result = find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode= distance_mode)
+        else:
+            result = find_closest_person(pred_embed, embeddings, image2class, distance_mode= distance_mode)
+
         print(result)
         if result != -1:
             predict_class.append(result)
 
     class_count = Counter(predict_class)
     
-    majority_threshold = len(images) * validation_threhold
+    majority_threshold = len(valid_images) * validation_threhold
 
     person_identified = False  
 
@@ -235,13 +250,15 @@ def check_validation(images, embeddings, image2class, idx_to_class, recogn_model
             os.system("start greeting.mp3")  
             
             person_identified = True
-            break  
+            return person_name
+            
     
     if not person_identified:
         print("Unknown person")
         tts = gTTS("Vui lòng thử lại", lang='vi')
         tts.save("retry.mp3") 
-        os.system("start retry.mp3") 
+        os.system("start retry.mp3")
+        return False 
 
 
 if __name__ == '__main__':
@@ -253,9 +270,9 @@ if __name__ == '__main__':
     
     embeddings, image2class, index2class = load_embeddings_and_names(embedding_file_path, image2class_file_path, index2class_file_path)
     video_path = 'data/dataset/sontung/025.jpg'
-    valid_images = infer_camera()
+    result = infer_camera()
 
-    check_validation(valid_images, embeddings, image2class, index2class, recogn_model, is_antispoof= True)
+    check_validation(result, embeddings, image2class, index2class, recogn_model)
 
 
 
