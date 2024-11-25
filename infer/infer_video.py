@@ -16,6 +16,9 @@ from .utils import get_model
 import os
 from gtts import gTTS
 from .identity_person import find_closest_person_vote,find_closest_person
+from playsound import playsound
+
+
 
 recogn_model = get_model('inceptionresnetV1')
 l2_distance = PairwiseDistance(p=2)
@@ -65,10 +68,7 @@ def infer_camera(min_face_area=10000, bbox_threshold=0.7, required_images=16):
 
                     if width * 0.15 < center_x < width * 0.85 and height * 0.15 < center_y < height * 0.85 and distance_from_center < min(width, height) * 0.4:
                         if previous_message != 1:
-                            tts = gTTS("giữ yên khuôn mặt", lang='vi')
-                            tts.save("guide.mp3") 
-                            os.system("start guide.mp3") 
-
+                            playsound('audio/guide_keepface.mp3')
                             previous_message = 1
                         
                         is_real, score = antispoof_model.analyze(frame, map(int, face))
@@ -78,15 +78,12 @@ def infer_camera(min_face_area=10000, bbox_threshold=0.7, required_images=16):
 
                     else:
                         if previous_message != 2:
-                            tts = gTTS("đưa khuôn mặt vào giữa màn hình",  lang='vi')
-                            tts.save("guide.mp3") 
-                            os.system("start guide.mp3") 
-
+                            playsound('audio/guide_centerface.mp3')
                             previous_message = 2
 
                 else:
                     if previous_message != 3:
-                        tts = gTTS("Đưa khuôn mặt lại gần hơn",  lang='vi')
+                        print("Đưa khuôn mặt lại gần hơn")
                         previous_message = 3
 
         else:
@@ -245,19 +242,26 @@ def check_validation(input, embeddings, image2class, idx_to_class, recogn_model,
             person_name = idx_to_class.get(cls, 'Unknown')
             print(f"Người được nhận diện là: {person_name}")
             
+            audio_dir = "audio"
+            os.makedirs(audio_dir, exist_ok=True)
+
+            # Xóa file greeting.mp3 nếu đã tồn tại
+            audio_path = os.path.join(audio_dir, "greeting.mp3")
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+
+            # Lưu file và phát âm thanh
             tts = gTTS(f"Xin chào {person_name}", lang='vi')
-            tts.save("greeting.mp3")  
-            os.system("start greeting.mp3")  
-            
+            tts.save(audio_path)
+            playsound(audio_path)
+
             person_identified = True
             return person_name
             
     
     if not person_identified:
         print("Unknown person")
-        tts = gTTS("Vui lòng thử lại", lang='vi')
-        tts.save("retry.mp3") 
-        os.system("start retry.mp3")
+        playsound('audio/retry.mp3')
         return False 
 
 
