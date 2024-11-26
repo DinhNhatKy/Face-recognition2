@@ -204,7 +204,7 @@ def infer_video(video_path, min_face_area=10000, bbox_threshold=0.7, required_im
 
 
 
-def check_validation(input, embeddings, image2class, idx_to_class, recogn_model, is_anti_spoof= False, validation_threhold= 0.7, is_vote= False, distance_mode = 'cosine'):
+def check_validation(input, embeddings, image2class, idx_to_class, recogn_model, is_anti_spoof= False, validation_threhold= 0.7, is_vote= False, distance_mode = 'cosine', anti_spoof_threshold= 0.9):
     
     valid_images = input['valid_images']
 
@@ -217,7 +217,7 @@ def check_validation(input, embeddings, image2class, idx_to_class, recogn_model,
     for i, image in enumerate(valid_images):
 
         if is_anti_spoof:
-            if not input['is_reals'][i][0] and input['is_reals'][i][1]> 0.9:
+            if not input['is_reals'][i][0] and input['is_reals'][i][1]> anti_spoof_threshold:
                 continue
 
         pred_embed = infer(recogn_model, image)
