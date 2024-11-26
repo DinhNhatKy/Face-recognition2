@@ -204,7 +204,7 @@ def infer_video(video_path, min_face_area=10000, bbox_threshold=0.7, required_im
 
 
 
-def check_validation(input, embeddings, image2class, idx_to_class, recogn_model, is_antispoof= False, validation_threhold= 0.7, is_vote= False, distance_mode = 'cosine'):
+def check_validation(input, embeddings, image2class, idx_to_class, recogn_model, is_anti_spoof= False, validation_threhold= 0.7, is_vote= False, distance_mode = 'cosine'):
     
     valid_images = input['valid_images']
 
@@ -216,7 +216,7 @@ def check_validation(input, embeddings, image2class, idx_to_class, recogn_model,
 
     for i, image in enumerate(valid_images):
 
-        if is_antispoof:
+        if is_anti_spoof:
             if not input['is_reals'][i][0] and input['is_reals'][i][1]> 0.9:
                 continue
 
@@ -245,12 +245,11 @@ def check_validation(input, embeddings, image2class, idx_to_class, recogn_model,
             audio_dir = "audio"
             os.makedirs(audio_dir, exist_ok=True)
 
-            # Xóa file greeting.mp3 nếu đã tồn tại
             audio_path = os.path.join(audio_dir, "greeting.mp3")
             if os.path.exists(audio_path):
                 os.remove(audio_path)
 
-            # Lưu file và phát âm thanh
+
             tts = gTTS(f"Xin chào {person_name}", lang='vi')
             tts.save(audio_path)
             playsound(audio_path)
@@ -277,6 +276,6 @@ if __name__ == '__main__':
     result = infer_camera()
 
     check_validation(result, embeddings, image2class, index2class, recogn_model)
-
+   
 
 
