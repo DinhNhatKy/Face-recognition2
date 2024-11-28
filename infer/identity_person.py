@@ -13,6 +13,10 @@ import numpy as np
 from models.spoofing.FasNet import Fasnet
 from .utils import get_model
 from collections import defaultdict
+import yaml
+
+with open('config.yaml', 'r') as file:
+    config = yaml.safe_load(file)['identity_person']
 
 
 l2_distance = PairwiseDistance(p=2)
@@ -20,45 +24,37 @@ device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
 antispoof_model = Fasnet()
 
 
-def find_closest_person(pred_embed, embeddings, image2class, distance_mode='cosine', l2_threshold=1, cosine_threshold=0.5):
+def find_closest_person(pred_embed, embeddings, image2class, distance_mode=config['distance_mode'], l2_threshold=config['l2_threshold'], cosine_threshold=config['cosine_threshold']):
     """
     Hàm tính toán khoảng cách trung bình giữa pred_embed và các lớp trong cơ sở dữ liệu và trả về lớp gần nhất.
     """
-    # Chuyển embeddings thành tensor
     embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
 
-    # Tính toán khoảng cách giữa pred_embed và tất cả embeddings
     if distance_mode == 'l2':
-        # Tính khoảng cách L2 (Euclidean distance)
         distances = torch.norm(embeddings_tensor - pred_embed, dim=1).detach().cpu().numpy()
     else:
-        # Tính độ tương đồng Cosine chuyển thành khoảng cách
+     
         similarities = F.cosine_similarity(pred_embed, embeddings_tensor)
         distances = (1 - similarities).detach().cpu().numpy()
 
-    # Chuyển image2class thành mảng NumPy để xử lý nhanh
     image2class_np = np.array([image2class[i] for i in range(len(embeddings))])
     
-    # Sử dụng NumPy để tính tổng khoảng cách và số lượng phần tử mỗi lớp
     num_classes = max(image2class.values()) + 1
     
-    # Tính tổng khoảng cách cho mỗi lớp
     total_distances = np.zeros(num_classes, dtype=np.float32)
     np.add.at(total_distances, image2class_np, distances)
-    
-    # Tính số lượng phần tử mỗi lớp
+
     counts = np.zeros(num_classes, dtype=np.int32)
     np.add.at(counts, image2class_np, 1)
 
-    # Tính trung bình khoảng cách cho mỗi lớp (tránh chia cho 0)
     avg_distances = np.divide(total_distances, counts, out=np.full_like(total_distances, np.inf), where=counts > 0)
 
     if distance_mode == 'l2':
-        best_class = np.argmin(avg_distances)  # Lớp có khoảng cách trung bình nhỏ nhất
+        best_class = np.argmin(avg_distances) 
         if avg_distances[best_class] < l2_threshold:
             return best_class
     else:  # Cosine
-        best_class = np.argmin(avg_distances)  # Với Cosine, khoảng cách nhỏ nhất là tốt nhất
+        best_class = np.argmin(avg_distances)
         if avg_distances[best_class] < cosine_threshold:
             return best_class
     
@@ -66,7 +62,7 @@ def find_closest_person(pred_embed, embeddings, image2class, distance_mode='cosi
  
 
 
-def find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode= 'cosine', k=15, vote_threhold = 0.8, l2_threshold= 1, cosine_threshold= 0.5 ):
+def find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode= config['distance_mode'], k=config['k'], vote_threshold = config['vote_threshold'], l2_threshold= config['l2_threshold'], cosine_threshold= config['cosine_threshold'] ):
 
     embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
     if distance_mode == 'l2':
@@ -87,7 +83,7 @@ def find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode=
 
     best_class_index = class_counts.most_common(1)[0][0]
 
-    if k_nearest_classes.count(best_class_index) >= vote_threhold * len(k_nearest_classes):
+    if k_nearest_classes.count(best_class_index) >= vote_threshold * len(k_nearest_classes):
         return best_class_index
     else:
         return -1
@@ -97,9 +93,9 @@ if __name__ == '__main__':
 
     recogn_model_name= 'inceptionresnetV1'
     
-    embedding_file_path= 'data/data_source/inceptionresnetV1_embeddings.npy'
-    image2class_file_path = 'data/data_source/inceptionresnetV1_image2class.pkl'
-    index2class_file_path = 'data/data_source/inceptionresnetV1_index2class.pkl'
+    embedding_file_path= 'data/data_source/db1/inceptionresnetV1_embeddings.npy'
+    image2class_file_path = 'data/data_source/db1/inceptionresnetV1_image2class.pkl'
+    index2class_file_path = 'data/data_source/db1/inceptionresnetV1_index2class.pkl'
 
     embeddings, image2class, index2class = load_embeddings_and_names(embedding_file_path, image2class_file_path, index2class_file_path)
 

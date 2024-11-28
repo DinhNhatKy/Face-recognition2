@@ -43,14 +43,17 @@ def create_data_embeddings(data_gallary_path, recognition_model_name, save_path)
             aligned.append(x_aligned)
         else:
             results = yolo(x)
-
-            if results[0].boxes is not None:
+            print()
+            if results[0].boxes.xyxy.shape[0] != 0:
                 boxes = results[0].boxes.xyxy.cpu().numpy() 
                 x1, y1, x2, y2 = map(int, boxes[0]) 
                 face = x.crop((x1, y1, x2, y2)).resize((160, 160), Image.Resampling.LANCZOS)
                 x_aligned = inceptionresnetV1_transform(face)
                 aligned.append(x_aligned)
-        
+            else:
+                face = x.resize((160, 160), Image.Resampling.LANCZOS)
+                x_aligned = inceptionresnetV1_transform(face)
+                aligned.append(x_aligned)
 
     if aligned:
         aligned = torch.cat(aligned, dim=0).to(device)
@@ -91,16 +94,15 @@ if __name__ == '__main__':
     
     data_gallary_path = 'data/dataset'
     embedding_save_path = 'data/data_source'
-    embeddings, image2class, index2class = create_data_embeddings(data_gallary_path, 'inceptionresnetV1', embedding_save_path )
+    # embeddings, image2class, index2class = create_data_embeddings(data_gallary_path, 'inceptionresnetV1', embedding_save_path )
  
 
-    embedding_file_path= 'data/data_source/inceptionresnetV1_embeddings.npy'
-    image2class_file_path = 'data/data_source/inceptionresnetV1_image2class.pkl'
-    index2class_file_path = 'data/data_source/inceptionresnetV1_index2class.pkl'
+    embedding_file_path= 'data/data_source/db2/inceptionresnetV1_embeddings.npy'
+    image2class_file_path = 'data/data_source/db2/inceptionresnetV1_image2class.pkl'
+    index2class_file_path = 'data/data_source/db2/inceptionresnetV1_index2class.pkl'
 
-    # embeddings, image2class, index2class = load_embeddings_and_names(embedding_file_path, image2class_file_path, index2class_file_path)
+    embeddings, image2class, index2class = load_embeddings_and_names(embedding_file_path, image2class_file_path, index2class_file_path)
 
-    
     print(embeddings.shape)
     print(image2class)
     print(index2class)

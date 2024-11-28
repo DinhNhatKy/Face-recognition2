@@ -11,7 +11,12 @@ from infer.infer_video import check_validation, load_embeddings_and_names
 from infer.utils import get_model
 import threading
 import time
-from load_image import load_and_display_images
+from interface.load_image import load_and_display_images
+from interface.create_embedding import create_embedding
+from tkinter import filedialog
+import os
+from CustomTkinterMessagebox import CTkMessagebox
+
 
 antispoof_model = Fasnet()
 cap = None
@@ -19,13 +24,47 @@ previous_message = None
 valid_images = []
 is_reals = []
 recogn_model = get_model('inceptionresnetV1')
-embeddings, image2class, index2class = load_embeddings_and_names(
-    'data/data_source/inceptionresnetV1_embeddings.npy',
-    'data/data_source/inceptionresnetV1_image2class.pkl',
-    'data/data_source/inceptionresnetV1_index2class.pkl')
 
-def infer_camera(min_face_area=10000, bbox_threshold=0.7, required_images=16,
-                 valid_threshold=0.7, is_anti_spoof=False, is_vote=False, distance_mode='cosine', anti_spoof_threshold_value=0.9):
+embeddings = None
+image2class= None 
+index2class = None
+
+def select_db():
+    global  embeddings, image2class, index2class
+    db_path = filedialog.askdirectory(title="please select db")
+
+    embeddings_path= 'data/data_source/db1/inceptionresnetV1_embeddings.npy'
+    image2class_path = 'data/data_source/db1/inceptionresnetV1_image2class.pkl'
+    index2class_path = 'data/data_source/db1/inceptionresnetV1_index2class.pkl'
+
+    if db_path:
+        for file_name in os.listdir(db_path):
+            if file_name.endswith('.npy'):
+                embeddings_path = os.path.join(db_path, file_name)
+            elif file_name.endswith('_image2class.pkl'):
+                image2class_path= os.path.join(db_path, file_name)
+            else:
+                index2class_path = os.path.join(db_path, file_name)
+
+    embeddings, image2class, index2class = load_embeddings_and_names(
+                                                                    embedding_file_path= embeddings_path,
+                                                                    image2class_file_path= image2class_path,
+                                                                    index2class_file_path= index2class_path)
+
+
+def infer_camera( 
+                
+                min_face_area=10000,
+                bbox_threshold=0.7, 
+                required_images=16,
+                valid_threshold=0.7,
+                is_anti_spoof=False, 
+                is_vote=False, 
+                distance_mode='cosine', 
+                anti_spoof_threshold_value=0.9):
+    
+    global embeddings, image2class, index2class
+
     cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
@@ -51,8 +90,27 @@ def infer_camera(min_face_area=10000, bbox_threshold=0.7, required_images=16,
             if face is not None:
                 x1, y1, x2, y2 = map(int, face)
                 if prob > bbox_threshold:
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(frame, f"Face {prob:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                    line_length = 20
+                    color = (0, 255, 0) 
+                    thickness = 1     
+
+                    # Góc trên bên trái
+                    cv2.line(frame, (x1, y1), (x1 + line_length, y1), color, thickness) 
+                    cv2.line(frame, (x1, y1), (x1, y1 + line_length), color, thickness) 
+
+                    # Góc trên bên phải
+                    cv2.line(frame, (x2, y1), (x2 - line_length, y1), color, thickness) 
+                    cv2.line(frame, (x2, y1), (x2, y1 + line_length), color, thickness) 
+
+                    # Góc dưới bên trái
+                    cv2.line(frame, (x1, y2), (x1 + line_length, y2), color, thickness) 
+                    cv2.line(frame, (x1, y2), (x1, y2 - line_length), color, thickness)
+
+                    # Góc dưới bên phải
+                    cv2.line(frame, (x2, y2), (x2 - line_length, y2), color, thickness) 
+                    cv2.line(frame, (x2, y2), (x2, y2 - line_length), color, thickness) 
+
+                    cv2.putText(frame, f"Face {prob:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, thickness)
 
                 area = (face[2] - face[0]) * (face[3] - face[1])
 
@@ -137,24 +195,27 @@ def change_scaling(new_scaling: str):
 
 
 def start_infer_camera():
-    min_face_area_value = int(min_face_area.get())
-    bbox_threshold_value = float(bbox_threshold.get())
-    num_image_value = int(num_image.get())
-    valid_threshold_value = float(valid_threhold.get())
-    is_anti_spoof_value = anti_spoof_switch.get()
-    is_vote_value = vote_switch.get()
-    distance_mode_value = appearance_mode_optionmenu.get()
-    anti_spoof_threshold_value = float(anti_spoof_threshold.get())
-    infer_camera(
-        min_face_area=min_face_area_value,
-        bbox_threshold=bbox_threshold_value,
-        required_images=num_image_value,
-        valid_threshold=valid_threshold_value,
-        is_anti_spoof=is_anti_spoof_value,
-        is_vote=is_vote_value,
-        distance_mode=distance_mode_value,
-        anti_spoof_threshold_value= anti_spoof_threshold_value
-    )
+    if embeddings is None:
+        CTkMessagebox.messagebox(title='Database select', text='Please select database!', sound='on', button_text='OK')
+    else: 
+        min_face_area_value = int(min_face_area.get())
+        bbox_threshold_value = float(bbox_threshold.get())
+        num_image_value = int(num_image.get())
+        valid_threshold_value = float(valid_threhold.get())
+        is_anti_spoof_value = anti_spoof_switch.get()
+        is_vote_value = vote_switch.get()
+        distance_mode_value = appearance_mode_optionmenu.get()
+        anti_spoof_threshold_value = float(anti_spoof_threshold.get())
+        infer_camera(
+                        min_face_area=min_face_area_value,
+                        bbox_threshold=bbox_threshold_value,
+                        required_images=num_image_value,
+                        valid_threshold=valid_threshold_value,
+                        is_anti_spoof=is_anti_spoof_value,
+                        is_vote=is_vote_value,
+                        distance_mode=distance_mode_value,
+                        anti_spoof_threshold_value= anti_spoof_threshold_value
+                    )
 
 def update_status_display(person_name):
     if person_name:  
@@ -191,27 +252,19 @@ root.grid_rowconfigure((0, 1, 2,), weight=1)
 
 
 
-def load_image():
-    tab_frame = customtkinter.CTkFrame(root)
-    tab_frame.grid(row=0, column=1, columnspan=3, rowspan=3, sticky="nsew", padx=30, pady=30)
-    load_and_display_images(left_frame, tab_frame)
-
-
-
 menubar = tk.Menu(root)
 file = tk.Menu(menubar, tearoff=0)
-file.add_command(label='Test camera')
 file.add_separator()
 file.add_command(label='Exit', command=root.destroy)
 menubar.add_cascade(label='Main', menu=file)
 
 edit = tk.Menu(menubar, tearoff=0)
-edit.add_command(label='open',  command= load_image)
+edit.add_command(label='open',  command= lambda:  load_and_display_images(root))
 menubar.add_cascade(label='Upload image', menu=edit)
 
 tools_menu = tk.Menu(menubar, tearoff=0)
-tools_menu.add_command(label="Infomation")
-menubar.add_cascade(label="Help", menu=tools_menu)
+tools_menu.add_command(label="Create embedding", command= lambda:  create_embedding(root))
+menubar.add_cascade(label="Embedding", menu=tools_menu)
 
 
 
@@ -247,7 +300,7 @@ button_open = customtkinter.CTkButton(left_frame, text="Open Camera", width=110,
 button_open.pack(pady=7)
 
 
-min_face_area_label = customtkinter.CTkLabel(left_frame, text="Min_face_area: 10000")  # Giá trị mặc định
+min_face_area_label = customtkinter.CTkLabel(left_frame, text="Min_face_area: 10000") 
 min_face_area_label.pack(pady=7)
 
 def update_minface_value(value):
@@ -259,7 +312,7 @@ min_face_area.set(10000)
 min_face_area.pack(pady=5, padx=(4,4))
 
 
-bbox_threshold_label = customtkinter.CTkLabel(left_frame, text="Bbox_threshold: 0.7")  # Giá trị mặc định
+bbox_threshold_label = customtkinter.CTkLabel(left_frame, text="Bbox_threshold: 0.7") 
 bbox_threshold_label.pack(pady=5)
 
 def update_bbox_threhold(value):
@@ -270,7 +323,7 @@ bbox_threshold.set(0.7)
 bbox_threshold.pack(pady=4, padx=(4,4))
 
 
-anti_spoof_score_label = customtkinter.CTkLabel(left_frame, text="Anti spoof threshold: 0.7")  # Giá trị mặc định
+anti_spoof_score_label = customtkinter.CTkLabel(left_frame, text="Anti spoof threshold: 0.7") 
 anti_spoof_score_label.pack(pady=5)
 
 def update_anti_spoof_thres(value):
@@ -281,8 +334,7 @@ anti_spoof_threshold.set(0.9)
 anti_spoof_threshold.pack(pady=4, padx=(4,4))
 
 
-
-num_image_label = customtkinter.CTkLabel(left_frame, text="Num_image: 16")  # Giá trị mặc định
+num_image_label = customtkinter.CTkLabel(left_frame, text="Num_image: 16") 
 num_image_label.pack(pady=4)
 
 def update_num_image(value):
@@ -292,20 +344,17 @@ num_image = customtkinter.CTkSlider(left_frame, from_=1, to=50, number_of_steps=
 num_image.set(16)
 num_image.pack(pady=4, padx=(4,4))
 
-
 is_anti_spoof = False
 
 def on_is_spoof_change(value):
     global is_anti_spoof 
     is_anti_spoof = value  
 
-
 anti_spoof_switch_label = customtkinter.CTkLabel(left_frame, text="Is anti_spoof") 
 anti_spoof_switch_label.pack(pady=4)
 
 anti_spoof_switch = customtkinter.CTkSwitch(left_frame, text="Enable", command=lambda: on_is_spoof_change(anti_spoof_switch.get()))
 anti_spoof_switch.pack(pady=4)
-
 
 is_vote = False
 
@@ -331,9 +380,7 @@ def change_distance_mode(value):
 appearance_mode_optionmenu = customtkinter.CTkOptionMenu(left_frame, values=["cosine", "l2"], command=change_distance_mode)
 appearance_mode_optionmenu.pack( padx=4, pady=(4, 4))
 
-
-
-valid_threshold_label = customtkinter.CTkLabel(left_frame, text="Valid_threshold: 0.7")  # Giá trị mặc định
+valid_threshold_label = customtkinter.CTkLabel(left_frame, text="Valid_threshold: 0.7") 
 valid_threshold_label.pack(pady=4)
 
 def update_valid_threshold(value):
@@ -343,6 +390,8 @@ valid_threhold = customtkinter.CTkSlider(left_frame, from_=0.5, to=1.0, number_o
 valid_threhold.set(0.7)
 valid_threhold.pack(pady=4, padx=(4,4))
 
+button_select_db = customtkinter.CTkButton(right_frame, text="Select db", width=110, height=30, command=select_db)
+button_select_db.grid(row=6, column=0, padx=20, pady=(10, 20))
 
 
 appearance_mode_optionmenu = customtkinter.CTkOptionMenu(right_frame, values=["Light", "Dark", "System"], command=change_appearance_mode)
@@ -353,6 +402,8 @@ scaling_label.grid(row=8, column=0, padx=20, pady=(10, 0))
 
 scaling_optionmenu = customtkinter.CTkOptionMenu(right_frame, values=["80%", "90%", "100%", "110%", "120%"], command= change_scaling)
 scaling_optionmenu.grid(row=9, column=0, padx=20, pady=(10, 20))
+
+
 
 canvas = customtkinter.CTkCanvas(root, background="gray", borderwidth=2, relief="solid")
 canvas.grid(row=0, column=1, columnspan=3, rowspan=3, sticky="nsew", padx=30, pady=30)

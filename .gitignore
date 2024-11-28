@@ -1,5 +1,8 @@
 .venv/
-data/
+*.png
+*.jpg
+*.pkl
+*.npy
 *.pth
 *.pt
 testdata/
