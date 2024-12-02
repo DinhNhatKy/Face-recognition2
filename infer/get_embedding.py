@@ -1,7 +1,6 @@
 from torchvision import datasets
 import torch
 from torch.utils.data import DataLoader
-from torchvision import datasets
 import numpy as np
 import os
 from .getface import mtcnn_inceptionresnetV1, mtcnn_resnet

@@ -4,7 +4,6 @@ import os
 import random
 from torchvision import transforms
 import customtkinter as ctk
-from tkinter import Canvas, Scrollbar
 from tkinter import messagebox
 
 folder_name = None
@@ -92,7 +91,6 @@ def load_and_display_images(root):
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
             transforms.ToTensor()
         ])
-
         transformed_images = []
             
         for image in list_images:
@@ -158,7 +156,7 @@ def load_and_display_images(root):
         custom_frame.grid_forget()
         tab_frame.grid_forget()
 
-    # Sử dụng grid thay vì pack cho các button và option menu
+
     browse_button = ctk.CTkButton(custom_frame, text="Select folder", command=browse_folder)
     browse_button.grid(row=0, column=0, pady=(40, 10), padx=(20, 20))
 

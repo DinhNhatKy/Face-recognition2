@@ -7,7 +7,6 @@ from torch import nn
 from torch.nn import functional as F
 
 
-
 class BasicConv2d(nn.Module):
 
     def __init__(self, in_planes, out_planes, kernel_size, stride, padding=0):
@@ -317,11 +316,10 @@ def load_weights(mdl, name):
 
 
 if __name__ == "__main__":
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
     model = InceptionResnetV1(pretrained='vggface2', classify=False, num_classes=None, dropout_prob=0.6, device=device)
-
     model.eval()
     x= torch.randn(1,3,80,80).to(device)
-    output = model(x).to(device)
+    output = model(x).to(device) 
     print(output.shape)

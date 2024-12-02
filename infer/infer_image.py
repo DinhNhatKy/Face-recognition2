@@ -23,6 +23,8 @@ def inceptionresnetV1_transform(img):
     img = img.to(device)
     return img
 
+
+
 def resnet_transform(image):
     data_transforms = transforms.Compose([
     transforms.ToPILImage(),
@@ -72,42 +74,6 @@ def get_align(image):
 if __name__ == "__main__":
     
     antispoof_model = Fasnet()
-
-    # anc_path  = 'testdata/chipu/002.jpg'
-    # pos_path = 'data/dataset/chipu/004.jpg'
-    # neg_path = 'data/dataset/sontung/001.jpg'
-    
-    # select_model = 'inceptionresnetV1'
-
-    # anc_image = Image.open(anc_path).convert('RGB')
-    # pos_image = Image.open(pos_path).convert('RGB')
-    # neg_image = Image.open(neg_path).convert('RGB')
-
-    # anc_embedding, anc_spool_score, anc_score= infer(select_model , anc_image, antispoof_model)
-    # pos_embedding, pos_spool_score, pos_score =  infer(select_model , pos_image, antispoof_model)
-    # neg_embedding, neg_spool_score, neg_score =  infer(select_model , neg_image, antispoof_model)
-
-    # print(anc_spool_score, anc_score)
-    # print(pos_spool_score, pos_score)
-    # print(neg_spool_score, neg_score)
-
-    # l2_distance = PairwiseDistance(p=2)
-
-    # dist1 =  l2_distance.forward(anc_embedding, pos_embedding)
-    # dist2 =  l2_distance.forward(anc_embedding, neg_embedding)
-
-
-    # cosine_similarity = F.cosine_similarity
-
-    # similarity_pos = cosine_similarity(anc_embedding, pos_embedding, dim=1)
-    # similarity_neg = cosine_similarity(anc_embedding, neg_embedding, dim=1)
-
-    # print('l2:')
-    # print(dist1.item())
-    # print(dist2.item())
-    # print('cosine:')
-    # print(similarity_pos.item())
-    # print(similarity_neg.item())
 
     image = Image.open('testdata/thaotam/006.jpg').convert('RGB')
     input_image, face, prob, landmark = get_align(image)

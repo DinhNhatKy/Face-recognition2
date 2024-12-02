@@ -24,7 +24,13 @@ device = torch.device('cpu' if torch.cuda.is_available() else 'cpu')
 antispoof_model = Fasnet()
 
 
-def find_closest_person(pred_embed, embeddings, image2class, distance_mode=config['distance_mode'], l2_threshold=config['l2_threshold'], cosine_threshold=config['cosine_threshold']):
+def find_closest_person(
+        pred_embed, 
+        embeddings, 
+        image2class, 
+        distance_mode=config['distance_mode'], 
+        l2_threshold=config['l2_threshold'], 
+        cosine_threshold=config['cosine_threshold']):
     """
     Hàm tính toán khoảng cách trung bình giữa pred_embed và các lớp trong cơ sở dữ liệu và trả về lớp gần nhất.
     """
@@ -62,7 +68,15 @@ def find_closest_person(pred_embed, embeddings, image2class, distance_mode=confi
  
 
 
-def find_closest_person_vote(pred_embed, embeddings, image2class, distance_mode= config['distance_mode'], k=config['k'], vote_threshold = config['vote_threshold'], l2_threshold= config['l2_threshold'], cosine_threshold= config['cosine_threshold'] ):
+def find_closest_person_vote(
+        pred_embed, 
+        embeddings, 
+        image2class, 
+        distance_mode= config['distance_mode'], 
+        k=config['k'], 
+        vote_threshold = config['vote_threshold'], 
+        l2_threshold= config['l2_threshold'], 
+        cosine_threshold= config['cosine_threshold'] ):
 
     embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
     if distance_mode == 'l2':
