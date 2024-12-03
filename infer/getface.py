@@ -16,7 +16,6 @@ mtcnn_inceptionresnetV1 = MTCNN(
     selection_method= 'largest',
     device=device,
     
-
 )
 
 mtcnn_resnet = MTCNN(
@@ -28,13 +27,11 @@ model_path = hf_hub_download(repo_id="arnabdhar/YOLOv8-Face-Detection", filename
 yolo = YOLO(model_path)
 
 if __name__ == '__main__':
-    from PIL import Image, ImageDraw
+    
+    from PIL import Image
     image_path = 'testdata/sontung/002.jpg'
     image = Image.open(image_path).convert('RGB')
-
-    # Phát hiện khuôn mặt
     boxes, probs = mtcnn_inceptionresnetV1.detect(image)
-
     print(boxes)
 
 

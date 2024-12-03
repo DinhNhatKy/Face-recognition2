@@ -1,25 +1,14 @@
 import torch
 import torch.nn as nn
 from models.face_recogn.inceptionresnetV1 import InceptionResnetV1
-from models.face_recogn.resnet import Resnet34Triplet
 device  = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def get_model(model_name):
     model = None
-
-    if model_name == 'resnet34':
-        checkpoint = torch.load('models/pretrained/model_resnet34_triplet.pt', weights_only = False, map_location=device)
-        model = Resnet34Triplet(
-            embedding_dimension=checkpoint['embedding_dimension'],
-            pretrained=True
-        )
-        state_dict = checkpoint['model_state_dict']
-
-    elif model_name == 'inceptionresnetV1':
+    if model_name == 'inceptionresnetV1':
         model = InceptionResnetV1(pretrained='vggface2', classify=False, num_classes=None, dropout_prob=0.6, device=device)
         state_dict = None
-
     else:
         print('please enter correct model! ')
 
@@ -30,7 +19,6 @@ def get_model(model_name):
     model.eval()
     
     return model
-
 
 
 def set_model_gpu_mode(model):

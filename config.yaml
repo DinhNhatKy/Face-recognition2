@@ -10,8 +10,8 @@ infer_video:
   anti_spoof_threshold: 0.9
 
 identity_person:
-  l2_threshold: 1
-  cosine_threshold: 0.5
-  k: 15 
+  l2_threshold: 1.1
+  cosine_threshold: 0.6
+  k: 5 
   vote_threshold:  0.8
   distance_mode: 'cosine'

@@ -46,8 +46,6 @@ def set_optimizer(optimizer, model, learning_rate):
 
     return optimizer_model
 
-
-
 def set_model_architecture(model_architecture, pretrained, embedding_dimension):
     if model_architecture == "inceptionresnetv2":
         model = InceptionResnetV1(
@@ -89,8 +87,6 @@ def forward_pass(imgs, model, batch_size):
     neg_embeddings = embeddings[batch_size * 2:]
 
     return anc_embeddings, pos_embeddings, neg_embeddings, model
-
-
 
 
 

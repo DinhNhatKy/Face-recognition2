@@ -7,7 +7,6 @@ import torch
 from torchvision import transforms
 from torch.nn.modules.distance import PairwiseDistance
 from .getface import mtcnn_inceptionresnetV1, mtcnn_resnet, yolo
-from models.face_recogn.resnet import Resnet34Triplet
 from models.face_recogn.inceptionresnetV1 import InceptionResnetV1
 import torch.nn.functional as F
 from models.spoofing.FasNet import Fasnet

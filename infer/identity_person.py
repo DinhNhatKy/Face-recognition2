@@ -33,6 +33,7 @@ def find_closest_person(
         cosine_threshold=config['cosine_threshold']):
     """
     Hàm tính toán khoảng cách trung bình giữa pred_embed và các lớp trong cơ sở dữ liệu và trả về lớp gần nhất.
+    
     """
     embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
 
