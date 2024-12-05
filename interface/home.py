@@ -216,7 +216,7 @@ def update_status_display(person_name):
         message = f"Accepted: {person_name}"
     else: 
         image_path = 'audio/reject.png'
-        message = "Rejected"
+        message = "Unknown person"
 
     original_image_label.configure(text=message)
 
